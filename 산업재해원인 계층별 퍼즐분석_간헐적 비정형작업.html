@@ -1,0 +1,1343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>산업재해원인 계층별 퍼즐 분석</title>
+    <style>
+        /* Keyframes for the spinner animation */
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        body {
+            min-height: 100vh;
+            background-color: #f0f4f8; /* Light blue-gray background */
+            display: flex;
+            flex-direction: column; /* Allow vertical stacking */
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            font-family: sans-serif; /* Default sans-serif font */
+            margin: 0; /* Remove default body margin */
+        }
+
+        /* Main content card for input and accident details */
+        .main-content-card {
+            background-color: #ffffff;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 100%; /* Default for mobile */
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+            margin-bottom: 20px; /* Space between sections */
+        }
+
+        /* Desktop styles: max-width 800px */
+        @media (min-width: 768px) { /* Common breakpoint for tablets and desktops */
+            .main-content-card {
+                max-width: 800px; /* Set max-width for larger screens */
+            }
+        }
+
+        h1 {
+            font-size: 36px; /* text-4xl */
+            font-weight: 800; /* font-extrabold */
+            text-align: center;
+            color: #374151; /* text-gray-800 */
+            margin-bottom: 32px; /* mb-8 */
+            letter-spacing: -0.025em; /* tracking-tight */
+        }
+
+        .input-section > div {
+            margin-bottom: 24px; /* space-y-6 equivalent */
+        }
+
+        label {
+            display: block;
+            font-size: 18px;
+            font-weight: 500;
+            color: #4b5563;
+            margin-bottom: 8px;
+        }
+
+        select {
+            width: 100%;
+            padding: 10px 16px;
+            border: 1px solid #d1d5db; /* border-gray-300 */
+            border-radius: 8px; /* rounded-lg */
+            box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+            font-size: 18px;
+            transition: border-color 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+            outline: none; /* Remove default focus outline */
+        }
+
+        select:focus {
+            border-color: #3b82f6; /* focus:border-blue-500 */
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px; /* Space between buttons */
+            margin-bottom: 10px;
+        }
+
+        .button-group button {
+            flex: 1; /* Distribute space equally */
+            margin-bottom: 0; /* Override individual button margin */
+        }
+
+        button {
+            width: 100%;
+            background: linear-gradient(to right, #ef4444, #ea580c); /* from-red-500 to-orange-600 */
+            color: #ffffff;
+            font-weight: 700; /* font-bold */
+            padding: 12px 24px; /* py-3 px-6 */
+            border-radius: 12px; /* rounded-xl */
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.06); /* shadow-lg */
+            border: none;
+            cursor: pointer;
+            font-size: 18px;
+            transition: transform 0.3s ease-in-out, box-shadow 0.3s ease-in-out, opacity 0.3s ease-in-out;
+            margin-bottom: 10px; /* Space between buttons */
+        }
+
+        button.reset-button {
+            background: linear-gradient(to right, #6b7280, #4b5563); /* Gray gradient for reset */
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .result-section {
+            margin-top: 32px;
+            padding-top: 24px;
+            border-top: 1px solid #e5e7eb;
+            word-break: keep-all;
+        }
+
+        .result-section h2 {
+            font-size: 24px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 16px;
+            text-align: center;
+        }
+
+        .message {
+            text-align: center;
+            color: #dc2626;
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        /* Loading spinner for overview generation */
+        .loading-spinner {
+            text-align: center;
+            color: #3b82f6;
+            font-size: 18px;
+        }
+
+        .loading-spinner div {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 4px solid #93c5fd; /* border-blue-300 */
+            border-top-color: #3b82f6; /* border-t-blue-500 */
+            border-radius: 50%;
+        }
+
+        .loading-spinner p {
+            margin-top: 8px;
+        }
+
+        .accident-details {
+            background-color: #fef2f2; /* bg-red-50 */
+            padding: 16px;
+            border-radius: 8px; /* rounded-lg */
+            border: 1px solid #fca5a5; /* border-red-200 */
+            box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.06); /* shadow-inner */
+            text-align: left;
+            display: none; /* Hidden by default, shown after generation */
+        }
+
+        .accident-details > div {
+            margin-bottom: 16px;
+        }
+
+        .accident-details h3 {
+            font-size: 20px;
+            font-weight: 700;
+            color: #b91c1c;
+            margin-bottom: 8px;
+        }
+
+        /* Style for bulleted lists */
+        .bullet-list {
+            list-style: none; /* Remove default bullet */
+            padding-left: 0; /* Remove default padding */
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        .bullet-list li {
+            font-size: 18px;
+            color: #b91c1c;
+            line-height: 1.6;
+            margin-bottom: 8px; /* Space between list items */
+            text-indent: -0.7em; /* Indent the text */
+            padding-left: 1em; /* Add padding for the bullet */
+            word-break: keep-all;
+        }
+
+        .bullet-list li:last-child {
+            margin-bottom: 0;
+        }
+
+
+        /* AI-selected Core Causes Display */
+        .core-causes-display {
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px dashed #ccc;
+        }
+
+        .core-causes-display h3 {
+            font-size: 18px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 10px;
+        }
+
+        /* Loading spinner for Hierarchical Puzzle generation */
+        .mandalart-loading-spinner {
+            text-align: center;
+            color: #3b82f6;
+            font-size: 18px;
+            margin-top: 10px; /* Position below the button */
+        }
+
+        .mandalart-loading-spinner div {
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            width: 32px;
+            height: 32px;
+            border: 4px solid #93c5fd;
+            border-top-color: #3b82f6;
+            border-radius: 50%;
+        }
+
+        .mandalart-loading-spinner p {
+            margin-top: 8px;
+        }
+
+
+        /* Hierarchical Puzzle Specific Styles */
+        .mandalart-container {
+            background-color: #ffffff;
+            padding: 32px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 100%;
+            box-sizing: border-box;
+            max-width: 800px; /* Same max-width as main-content-card */
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            word-break: keep-all;
+        }
+
+        .mandalart-grid {
+            display: grid;
+            gap: 5px; /* Gap between sub-grids in 9x9, or between cells in 3x3 */
+            border: 2px solid #374151; /* Darker border for the overall grid */
+            margin-top: 20px;
+            width: 100%; /* Make grid responsive */
+            aspect-ratio: 1 / 1; /* Keep it square */
+            max-width: 750px; /* Limit max width for 9x9, adjust as needed */
+        }
+
+        .mandalart-grid.grid-3x3 {
+            grid-template-columns: repeat(3, 1fr);
+            max-width: 450px; /* 1.5 times the original 300px */
+        }
+
+        .mandalart-grid.grid-9x9 {
+            grid-template-columns: repeat(3, 1fr); /* This grid holds 9 sub-grid containers */
+            gap: 5px; /* Gap between the 3x3 sub-grids */
+        }
+
+        /* New: Styles for the 3x3 sub-grid containers within the 9x9 grid */
+        .mandalart-subgrid-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2px; /* Smaller gap between cells within a sub-grid */
+            border: 1px solid #90cdf4; /* Border for each 3x3 block */
+            box-sizing: border-box; /* Ensure padding/border are included in size */
+            aspect-ratio: 1 / 1; /* Ensure sub-grids are also square */
+            cursor: pointer; /* Indicate clickable */
+        }
+
+
+        /* Responsive Font Sizes for Hierarchical Puzzle Cells */
+        .mandalart-cell {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #90cdf4; /* Border for individual cells */
+            text-align: center;
+            font-weight: 600;
+            padding: 5px;
+            box-sizing: border-box;
+            white-space: normal; /* Allow text wrapping by default */
+            overflow: hidden; /* Hide overflow, text-overflow: ellipsis will not work with normal wrapping */
+            cursor: default;
+            aspect-ratio: 1 / 1; /* Ensure cells are always square */
+            line-height: 1.2; /* Add line height for better wrapping */
+        }
+
+        /* 3x3 Grid Font Sizes */
+        .mandalart-grid.grid-3x3 .mandalart-cell {
+            font-size: 4.2vw; /* 1.5x original 2.8vw */
+        }
+        .mandalart-grid.grid-3x3 .mandalart-cell.center-theme {
+            font-size: 5.7vw; /* 1.5x original 3.8vw */
+        }
+        .mandalart-grid.grid-3x3 .mandalart-cell.main-category {
+            font-size: 5vw; /* 1.5x original 3.3vw, rounded */
+        }
+
+        /* 9x9 Grid Font Sizes (applied to cells within mandalart-subgrid-container) */
+        .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell {
+            font-size: 1.3vw;
+        }
+        .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.center-theme {
+            font-size: 1.8vw;
+        }
+        .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.main-category {
+            font-size: 1.6vw;
+        }
+        .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.sub-cause {
+            font-size: 1vw;
+        }
+
+        /* Desktop Overrides for Font Sizes (min-width: 768px) */
+        @media (min-width: 768px) {
+            .mandalart-grid.grid-3x3 .mandalart-cell {
+                font-size: 20px; /* 1.5x original 13px, rounded */
+            }
+            .mandalart-grid.grid-3x3 .mandalart-cell.center-theme {
+                font-size: 26px; /* 1.5x original 17px, rounded */
+            }
+            .mandalart-grid.grid-3x3 .mandalart-cell.main-category {
+                font-size: 23px; /* 1.5x original 15px, rounded */
+            }
+
+            .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell {
+                font-size: 9px;
+            }
+            .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.center-theme {
+                font-size: 12px;
+            }
+            .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.main-category {
+                font-size: 11px;
+            }
+            .mandalart-grid.grid-9x9 .mandalart-subgrid-container .mandalart-cell.sub-cause {
+                font-size: 8px;
+            }
+        }
+
+
+        .mandalart-cell.center-theme {
+            font-weight: 800;
+        }
+
+        .mandalart-cell.main-category {
+            font-weight: 700;
+        }
+
+        .mandalart-cell.sub-cause {
+            font-weight: 500;
+            /* cursor: pointer; */ /* Removed as it's no longer clickable */
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1000; /* Sit on top */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.4); /* Black w/ opacity */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background-color: #fefefe;
+            margin: auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%; /* Could be responsive */
+            max-width: 500px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            position: relative;
+        }
+
+        .close-button {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            position: absolute;
+            top: 10px;
+            right: 15px;
+        }
+
+        .close-button:hover,
+        .close-button:focus {
+            color: black;
+            text-decoration: none;
+            cursor: pointer;
+        }
+
+        .modal-body {
+            padding: 10px 0;
+            font-size: 16px;
+            color: #333;
+        }
+
+        /* New Modal for Expanded 3x3 Hierarchical Puzzle */
+        .sub-mandalart-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1001; /* Higher than main modal */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Darker overlay */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .sub-mandalart-modal-content {
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 90%; /* Responsive width */
+            max-width: 400px; /* Max width for the expanded 3x3 */
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .sub-mandalart-modal-content .close-button {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 30px;
+            cursor: pointer;
+            color: #666;
+        }
+        .sub-mandalart-modal-content .close-button:hover {
+            color: #333;
+        }
+
+        .sub-mandalart-modal-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+            border: 2px solid #374151;
+            width: 100%;
+            aspect-ratio: 1 / 1; /* Keep it square */
+            margin-top: 20px;
+        }
+
+        /* Font sizes for expanded 3x3 modal */
+        .sub-mandalart-modal-grid .mandalart-cell {
+            font-size: 3.5vw; /* Slightly larger for focus */
+        }
+        .sub-mandalart-modal-grid .mandalart-cell.center-theme {
+            font-size: 4.5vw;
+        }
+        .sub-mandalart-modal-grid .mandalart-cell.main-category {
+            font-size: 4vw;
+        }
+        .sub-mandalart-modal-grid .mandalart-cell.sub-cause {
+            font-size: 3vw;
+        }
+
+        @media (min-width: 768px) {
+            .sub-mandalart-modal-grid .mandalart-cell {
+                font-size: 16px;
+            }
+            .sub-mandalart-modal-grid .mandalart-cell.center-theme {
+                font-size: 20px;
+            }
+            .sub-mandalart-modal-grid .mandalart-cell.main-category {
+                font-size: 18px;
+            }
+            .sub-mandalart-modal-grid .mandalart-cell.sub-cause {
+                font-size: 14px;
+            }
+        }
+
+        /* New Modal for Accident Details */
+        .accident-details-modal {
+            display: none; /* Hidden by default */
+            position: fixed; /* Stay in place */
+            z-index: 1002; /* Higher than other modals */
+            left: 0;
+            top: 0;
+            width: 100%; /* Full width */
+            height: 100%; /* Full height */
+            overflow: auto; /* Enable scroll if needed */
+            background-color: rgba(0,0,0,0.6); /* Darker overlay */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .accident-details-modal-content {
+            background-color: #fefefe;
+            padding: 25px;
+            border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            width: 90%;
+            max-width: 900px; /* Max width for readability */
+            max-height: 90vh; /* Added max-height for scrollability */
+            overflow-y: auto; /* Enable vertical scrolling */
+            position: relative;
+            box-sizing: border-box;
+            display: flex;
+            flex-direction: column;
+            gap: 15px; /* Space between sections */
+        }
+
+        .accident-details-modal-content h2 {
+            font-size: 28px;
+            font-weight: 700;
+            color: #374151;
+            margin-bottom: 15px;
+            text-align: center;
+        }
+
+        .accident-details-modal-content h3 {
+            font-size: 22px;
+            font-weight: 600;
+            color: #4b5563;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 5px;
+        }
+
+        .accident-details-modal-content p, .accident-details-modal-content li {
+            font-size: 17px;
+            line-height: 1.5;
+            color: #333;
+        }
+
+        .accident-details-modal-content .info-item {
+            font-size: 18px;
+            font-weight: 500;
+            color: #1f2937;
+        }
+        .accident-details-modal-content .info-item strong {
+            color: #b91c1c; /* Red for emphasis */
+        }
+
+        .accident-details-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+            word-break: keep-all;
+        }
+
+        .accident-details-table th, .accident-details-table td {
+            border: 1px solid #d1d5db;
+            padding: 10px;
+            text-align: left;
+            vertical-align: middle;            
+        }
+
+        .accident-details-table th {
+            background-color: #e5e7eb;
+            font-weight: 600;
+            text-align: center;
+            color: #374151;
+        }
+
+        .accident-details-table td ul {
+            list-style: none;
+            padding-left: 0;
+            margin: 0;            
+        }
+
+        .accident-details-table td ul li {
+            margin-bottom: 5px;
+            font-size: 16px;
+            color: #4b5563;
+        }
+        .accident-details-table td ul li:last-child {
+            margin-bottom: 0;
+        }
+
+        /* Specific styling for the new button */
+        button#showAccidentDetailsButton {
+            padding: 12px 20px; /* Increased horizontal padding */
+            white-space: nowrap; /* Prevent text wrapping */
+            font-size: 18px; /* Ensure font size is consistent */
+            min-width: 180px; /* Ensure enough width for the text */
+        }
+
+    </style>
+</head>
+<body>
+    <div class="main-content-card">
+        <h1>산업재해원인 계층별 퍼즐 분석</h1>
+        <h2 align="center" style="color: red;">-간헐적 비정형 작업, <span style="color:blue;">2025.8.26. 9.30 교육용-</span></h2>
+
+        <div class="input-section">
+            <div>
+                <label for="industry">업종:</label>
+                <select id="industry"></select>
+            </div>
+
+            <div>
+                <label for="workType">작업유형:</label>
+                <select id="workType"></select>
+            </div>
+
+            <div>
+                <label for="workCharacteristic">작업특성:</label>
+                <select id="workCharacteristic"></select>
+            </div>
+
+            <div class="button-group">
+                <button id="generateOverviewButton">재해정보 생성</button>
+                <button id="resetButton" class="reset-button">초기화</button>
+            </div>
+        </div>
+
+        <div class="result-section">
+            <h2>생성된 재해 정보:</h2>
+            <p id="message" class="message" style="display: none;"></p>
+            <div id="loadingSpinner" class="loading-spinner" style="display: none;">
+                <div></div>
+                <p>재해 정보를 생성 중입니다...</p>
+            </div>
+            <!-- accidentDetailsDiv is now hidden by default, shown after generation -->
+            <div id="accidentDetails" class="accident-details">
+                <div id="overviewContainer">
+                    <h3>재해 개요:</h3>
+                    <p id="overviewText"></p>
+                </div>
+                <!-- These will be hidden by JS after generation -->
+                <div id="coreCausesSelection" class="core-causes-display" style="display: none;">
+                    <label for="coreCausesSelect">재해발생 핵심원인 선택 (AI 추천):</label>
+                    <select id="coreCausesSelect"></select>
+                    <p id="selectedCoreCauseDisplay" style="margin-top: 10px; font-weight: bold; color: #b91c1c; display: none;"></p>
+                </div>
+            </div>
+            <!-- 계층별 퍼즐 생성 버튼과 로딩 스피너를 재해 정보 섹션 아래로 이동 -->
+            <button id="generateMandalartButton" style="margin-top: 20px; display: none;" disabled>계층별 퍼즐 생성</button>
+            <div id="mandalartLoadingSpinner" class="mandalart-loading-spinner" style="display: none;">
+                <div></div>
+                <p>계층별 퍼즐 생성 중입니다...</p>
+            </div>
+        </div>
+    </div>
+
+    <div id="mandalartContainer" class="mandalart-container">
+        <h2>산업재해 계층별 퍼즐 분석</h2>
+        <div id="mandalartGrid" class="mandalart-grid grid-3x3">
+            <!-- 계층별 퍼즐 cells will be rendered here by JS -->
+        </div>
+        <!-- New button group below the grid -->
+        <div class="button-group" style="margin-top: 20px;">
+            <button id="expandMandalartButton" style="display: none;" disabled>계층별 퍼즐 확장</button>
+            <button id="showAccidentDetailsButton" style="display: none;">재해원인/예방대책</button>
+        </div>
+    </div>
+
+    <!-- New Modal Structure for Expanded 3x3 Hierarchical Puzzle (existing) -->
+    <div id="subMandalartModal" class="sub-mandalart-modal">
+        <div class="sub-mandalart-modal-content">
+            <span class="close-button" id="closeSubMandalartModal">&times;</span>
+            <h2>확장된 계층별 퍼즐 블록</h2>
+            <div id="subMandalartGrid" class="sub-mandalart-modal-grid">
+                <!-- Expanded 3x3 Hierarchical Puzzle cells will be rendered here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- New Modal for Detailed Accident Information -->
+    <div id="accidentDetailsModal" class="accident-details-modal">
+        <div class="accident-details-modal-content">
+            <span class="close-button" id="closeAccidentDetailsModal">&times;</span>
+            <h2>재해원인 상세분석 및 예방대책 보고서</h2>
+
+            <!-- 1. 재해 개요 -->
+            <div>
+                <h3>1. 재해 개요:</h3>
+                <p id="modalOverviewText"></p>
+            </div>
+
+            <!-- 2. 핵심원인 및 피해정도 -->
+            <div>
+                <h3>2. 핵심원인 및 피해정도:</h3>
+                <ul class="bullet-list">
+                    <li><span style="font-weight: bold; color: #b91c1c;">- 핵심원인: </span><strong id="modalCoreCause"></strong></li>
+                    <li><span style="font-weight: bold; color: #b91c1c;">- 물적손실: </span><strong id="modalMaterialLoss"></strong></li>
+                    <li><span style="font-weight: bold; color: #b91c1c;">- 인적피해: </span><strong id="modalHumanInjury"></strong></li>
+                </ul>
+            </div>
+
+            <!-- 3. 주요 원인 -->
+            <div>
+                <h3>3. 주요 원인:</h3>
+                <ul id="modalMainCausesList" class="bullet-list"></ul>
+            </div>
+
+            <!-- 4. 예방 대책 -->
+            <div>
+                <h3>4. 예방 대책:</h3>
+                <ul id="modalPreventionMeasuresList" class="bullet-list"></ul>
+            </div>
+
+            <!-- 5. 세부 원인 분석 -->
+            <div>
+                <h3>5. 세부 원인 분석: <span style="font-weight: bold; color: #b91c1c; margin-bottom: 10px; font-size: 23px;" id="modalSubCausesCoreCause"></span></h3>
+                <table class="accident-details-table">
+                    <thead>
+                        <tr>
+                            <th width="40%">세부 원인</th>
+                            <th width="60%">구체적 원인</th>
+                        </tr>
+                    </thead>
+                    <tbody id="modalSubCausesTableBody">
+                        <!-- Table rows will be populated by JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // 새로운 정적 드롭다운 옵션
+        const industryOptions = ['건설업', '기계기구 제조업', '선박건조 및 수리업', '화학 및 고무제품 제조업'];
+        const workTypeOptions = ['밀폐공간 내 세척작업', '기계 및 설비 수리/보수작업', '신규 기계장비 설치작업', '작업방법 및 절차 미규정 작업'];
+        const workCharacteristicOptions = ['간헐적 비정형', '단기간 비정기'];
+
+        // HTML 요소 참조 (수정됨)
+        const industrySelect = document.getElementById('industry');
+        const workTypeSelect = document.getElementById('workType');
+        const workCharacteristicSelect = document.getElementById('workCharacteristic');
+        const generateOverviewButton = document.getElementById('generateOverviewButton');
+        const resetButton = document.getElementById('resetButton');
+        const generateMandalartButton = document.getElementById('generateMandalartButton');
+        const expandMandalartButton = document.getElementById('expandMandalartButton');
+        const showAccidentDetailsButton = document.getElementById('showAccidentDetailsButton');
+        const messageElement = document.getElementById('message');
+        const loadingSpinner = document.getElementById('loadingSpinner');
+        const mandalartLoadingSpinner = document.getElementById('mandalartLoadingSpinner');
+        const accidentDetailsDiv = document.getElementById('accidentDetails');
+        const overviewText = document.getElementById('overviewText');
+        const coreCausesSelectionDiv = document.getElementById('coreCausesSelection');
+        const coreCausesSelect = document.getElementById('coreCausesSelect');
+        const selectedCoreCauseDisplay = document.getElementById('selectedCoreCauseDisplay');
+        const mandalartContainer = document.getElementById('mandalartContainer');
+        const mandalartGrid = document.getElementById('mandalartGrid');
+
+        // 서브 만다라트 모달 요소
+        const subMandalartModal = document.getElementById('subMandalartModal');
+        const closeSubMandalartModalButton = document.getElementById('closeSubMandalartModal');
+        const subMandalartGrid = document.getElementById('subMandalartGrid');
+
+        // 재해 상세 정보 모달 요소
+        const accidentDetailsModal = document.getElementById('accidentDetailsModal');
+        const closeAccidentDetailsModalButton = document.getElementById('closeAccidentDetailsModal');
+        const modalOverviewText = document.getElementById('modalOverviewText');
+        const modalMainCausesList = document.getElementById('modalMainCausesList');
+        const modalPreventionMeasuresList = document.getElementById('modalPreventionMeasuresList');
+        const modalCoreCause = document.getElementById('modalCoreCause');
+        const modalMaterialLoss = document.getElementById('modalMaterialLoss');
+        const modalHumanInjury = document.getElementById('modalHumanInjury');
+        const modalSubCausesTableBody = document.getElementById('modalSubCausesTableBody');
+        const modalSubCausesCoreCause = document.getElementById('modalSubCausesCoreCause');
+
+
+        // 전역 변수
+        let globalMandalartData = null;
+        let globalAccidentDetails = null;
+        let isMandalartExpanded = false;
+        let aiSelectedCoreCauses = [];
+        let selectedMandalartCoreCause = null;
+
+        // 색상 팔레트
+        const colors = {
+            centralTheme: '#4CAF50', // Green
+            mainCategories: [
+                '#FFC107', '#2196F3', '#9C27B0', '#FF5722',
+                '#00BCD4', '#E91E63', '#795548', '#607D8B'
+            ]
+        };
+
+        // Hex to RGB 변환
+        function hexToRgb(hex) {
+            var r = parseInt(hex.slice(1, 3), 16),
+                g = parseInt(hex.slice(3, 5), 16),
+                b = parseInt(hex.slice(5, 7), 16);
+            return [r, g, b];
+        }
+
+        // 밝기 계산
+        function getLuminance(r, g, b) {
+            return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        }
+
+        // 대비되는 글자색 선택
+        function getContrastTextColor(backgroundColorHex) {
+            const [r, g, b] = hexToRgb(backgroundColorHex);
+            const luminance = getLuminance(r, g, b);
+            return luminance > 0.5 ? '#000000' : '#FFFFFF';
+        }
+
+        // 색상 밝게 만들기
+        function lightenColor(hex, percent) {
+            if (!hex || hex.length !== 7) return hex;
+            var f = parseInt(hex.slice(1), 16),
+                t = percent < 0 ? 0 : 255,
+                p = percent < 0 ? percent * -1 : percent,
+                R = f >> 16,
+                G = (f >> 8) & 0x00FF,
+                B = f & 0x0000FF;
+            return "#" + (
+                0x1000000 +
+                (Math.round((t - R) * p) + R) * 0x10000 +
+                (Math.round((t - G) * p) + G) * 0x100 +
+                (Math.round((t - B) * p) + B)
+            ).toString(16).slice(1);
+        }
+
+        // 드롭다운 옵션 채우기
+        function populateSelect(selectElement, options) {
+            selectElement.innerHTML = '<option value="">-- 선택하세요 --</option>';
+            options.forEach(option => {
+                const opt = document.createElement('option');
+                opt.value = option;
+                opt.textContent = option;
+                selectElement.appendChild(opt);
+            });
+        }
+
+        // 만다라트 셀 생성
+        function createMandalartCell(text, className = '', onClick = null, backgroundColor = null, textColor = null) {
+            const cell = document.createElement('div');
+            cell.className = 'mandalart-cell ' + className;
+            cell.textContent = text;
+            if (backgroundColor) cell.style.backgroundColor = backgroundColor;
+            if (textColor) cell.style.color = textColor;
+            if (onClick) cell.addEventListener('click', onClick);
+            return cell;
+        }
+
+        // 3x3 만다라트 렌더링
+        function renderMandalart3x3(mandalartData) {
+            mandalartGrid.innerHTML = '';
+            mandalartGrid.className = 'mandalart-grid grid-3x3';
+            const cells = Array(9).fill(null);
+            const centralThemeBgColor = colors.centralTheme;
+            cells[4] = createMandalartCell(
+                mandalartData.centralTheme, 'center-theme', null,
+                centralThemeBgColor, getContrastTextColor(centralThemeBgColor)
+            );
+            const mainCategoryNames = mandalartData.mainCategories.map(cat => cat.name);
+            const positions = [0, 1, 2, 3, 5, 6, 7, 8];
+            mainCategoryNames.forEach((categoryName, index) => {
+                if (positions[index] !== undefined) {
+                    const mainCatBaseColor = colors.mainCategories[index];
+                    const mainCatBgColor = lightenColor(mainCatBaseColor, 0.5);
+                    cells[positions[index]] = createMandalartCell(
+                        categoryName, 'main-category', null,
+                        mainCatBgColor, getContrastTextColor(mainCatBgColor)
+                    );
+                }
+            });
+            cells.forEach(cell => {
+                if (cell) mandalartGrid.appendChild(cell);
+                else mandalartGrid.appendChild(createMandalartCell('', 'empty-cell', null, '#f0f4f8', '#000000'));
+            });
+            mandalartContainer.style.display = 'flex';
+            expandMandalartButton.style.display = 'block';
+            expandMandalartButton.textContent = '계층별 퍼즐 확장';
+            expandMandalartButton.disabled = false;
+            showAccidentDetailsButton.style.display = 'none';
+            isMandalartExpanded = false;
+        }
+
+        // 9x9 만다라트 렌더링
+        function renderMandalart9x9(mandalartData) {
+            mandalartGrid.innerHTML = '';
+            mandalartGrid.className = 'mandalart-grid grid-9x9';
+            for (let blockIndex = 0; blockIndex < 9; blockIndex++) {
+                const subGridContainer = document.createElement('div');
+                subGridContainer.className = 'mandalart-subgrid-container';
+                subGridContainer.dataset.blockIndex = blockIndex;
+                subGridContainer.addEventListener('click', () => expandSubMandalart(blockIndex));
+                const cellsInSubGrid = Array(9).fill(null);
+                if (blockIndex === 4) {
+                    subGridContainer.style.backgroundColor = colors.centralTheme;
+                    const centralCellBgColor = colors.centralTheme;
+                    cellsInSubGrid[4] = createMandalartCell(
+                        mandalartData.centralTheme, 'center-theme', null,
+                        centralCellBgColor, getContrastTextColor(centralCellBgColor)
+                    );
+                    const mainCategoryNames = mandalartData.mainCategories.map(cat => cat.name);
+                    const positions = [0, 1, 2, 3, 5, 6, 7, 8];
+                    mainCategoryNames.forEach((name, idx) => {
+                        if (positions[idx] !== undefined) {
+                            const mainCatBaseColor = colors.mainCategories[idx];
+                            const mainCatBgColor = lightenColor(mainCatBaseColor, 0.5);
+                            cellsInSubGrid[positions[idx]] = createMandalartCell(
+                                name, 'main-category', null,
+                                mainCatBgColor, getContrastTextColor(mainCatBgColor)
+                            );
+                        }
+                    });
+                } else {
+                    const mainCategoryDataIndex = blockIndex < 4 ? blockIndex : blockIndex - 1;
+                    const currentMainCategory = mandalartData.mainCategories[mainCategoryDataIndex];
+                    if (currentMainCategory) {
+                        const baseColor = colors.mainCategories[mainCategoryDataIndex];
+                        const subGridBgColor = lightenColor(baseColor, 0.4);
+                        subGridContainer.style.backgroundColor = subGridBgColor;
+                        cellsInSubGrid[4] = createMandalartCell(
+                            currentMainCategory.name, 'main-category', null,
+                            baseColor, getContrastTextColor(baseColor)
+                        );
+                        const subCausePositionsIn3x3 = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]];
+                        currentMainCategory.subCauses.forEach((subCause, subIndex) => {
+                            const [innerRow, innerCol] = subCausePositionsIn3x3[subIndex];
+                            const targetInnerIndex = innerRow * 3 + innerCol;
+                            if (targetInnerIndex >= 0 && targetInnerIndex < 9) {
+                                const subCauseCellBgColor = lightenColor(subGridBgColor, 0.2);
+                                cellsInSubGrid[targetInnerIndex] = createMandalartCell(
+                                    subCause, 'sub-cause', null, // onClick 핸들러 제거
+                                    subCauseCellBgColor, getContrastTextColor(subCauseCellBgColor)
+                                );
+                            }
+                        });
+                    }
+                }
+                cellsInSubGrid.forEach(cell => {
+                    if (cell) subGridContainer.appendChild(cell);
+                    else {
+                        const defaultEmptyCellColor = subGridContainer.style.backgroundColor ? lightenColor(subGridContainer.style.backgroundColor, 0.1) : '#f0f4f8';
+                        subGridContainer.appendChild(createMandalartCell('', 'empty-cell', null, defaultEmptyCellColor, getContrastTextColor(defaultEmptyCellColor)));
+                    }
+                });
+                mandalartGrid.appendChild(subGridContainer);
+            }
+            mandalartContainer.style.display = 'flex';
+            expandMandalartButton.style.display = 'block';
+            expandMandalartButton.textContent = '계층별 퍼즐 축소';
+            expandMandalartButton.disabled = false;
+            showAccidentDetailsButton.style.display = 'block';
+            isMandalartExpanded = true;
+        }
+
+        // 서브 만다라트 확장
+        function expandSubMandalart(blockIndex) {
+            subMandalartGrid.innerHTML = '';
+            const cellsToRender = Array(9).fill(null);
+            if (blockIndex === 4) {
+                const centralThemeBgColor = colors.centralTheme;
+                cellsToRender[4] = createMandalartCell(
+                    globalMandalartData.centralTheme, 'center-theme', null,
+                    centralThemeBgColor, getContrastTextColor(centralThemeBgColor)
+                );
+                const mainCategoryNames = globalMandalartData.mainCategories.map(cat => cat.name);
+                const positions = [0, 1, 2, 3, 5, 6, 7, 8];
+                mainCategoryNames.forEach((name, idx) => {
+                    if (positions[idx] !== undefined) {
+                        const mainCatBaseColor = colors.mainCategories[idx];
+                        const mainCatBgColor = lightenColor(mainCatBaseColor, 0.5);
+                        cellsToRender[positions[idx]] = createMandalartCell(
+                            name, 'main-category', null,
+                            mainCatBgColor, getContrastTextColor(mainCatBgColor)
+                        );
+                    }
+                });
+            } else {
+                const mainCategoryDataIndex = blockIndex < 4 ? blockIndex : blockIndex - 1;
+                const currentMainCategory = globalMandalartData.mainCategories[mainCategoryDataIndex];
+                if (currentMainCategory) {
+                    const baseColor = colors.mainCategories[mainCategoryDataIndex];
+                    const subGridBgColor = lightenColor(baseColor, 0.4);
+                    cellsToRender[4] = createMandalartCell(
+                        currentMainCategory.name, 'main-category', null,
+                        baseColor, getContrastTextColor(baseColor)
+                    );
+                    const subCausePositionsIn3x3 = [[0, 0], [0, 1], [0, 2], [1, 0], [1, 2], [2, 0], [2, 1], [2, 2]];
+                    currentMainCategory.subCauses.forEach((subCause, subIndex) => {
+                        const [innerRow, innerCol] = subCausePositionsIn3x3[subIndex];
+                        const targetInnerIndex = innerRow * 3 + innerCol;
+                        if (targetInnerIndex >= 0 && targetInnerIndex < 9) {
+                            const subCauseCellBgColor = lightenColor(subGridBgColor, 0.2);
+                            cellsToRender[targetInnerIndex] = createMandalartCell(
+                                subCause, 'sub-cause', null,
+                                subCauseCellBgColor, getContrastTextColor(subCauseCellBgColor)
+                            );
+                        }
+                    });
+                }
+            }
+            cellsToRender.forEach(cell => {
+                if (cell) subMandalartGrid.appendChild(cell);
+                else subMandalartGrid.appendChild(createMandalartCell('', 'empty-cell', null, '#f0f4f8', '#000000'));
+            });
+            subMandalartModal.style.display = 'flex';
+        }
+
+        // 모달 닫기
+        function closeSubMandalartModal() {
+            subMandalartModal.style.display = 'none';
+        }
+
+        // 핵심 원인 선택 핸들러
+        function selectCoreCauseForMandalart() {
+            selectedMandalartCoreCause = coreCausesSelect.value;
+            generateMandalartButton.disabled = !selectedMandalartCoreCause;
+        }
+
+        // 전체 초기화
+        function resetAll() {
+            industrySelect.value = '';
+            workTypeSelect.value = '';
+            workCharacteristicSelect.value = '';
+
+            messageElement.style.display = 'none';
+            loadingSpinner.style.display = 'none';
+            mandalartLoadingSpinner.style.display = 'none';
+            accidentDetailsDiv.style.display = 'none';
+            overviewText.textContent = '';
+            coreCausesSelectionDiv.style.display = 'none';
+            coreCausesSelect.innerHTML = '';
+            selectedCoreCauseDisplay.style.display = 'none';
+            coreCausesSelect.style.display = 'block';
+            aiSelectedCoreCauses = [];
+            selectedMandalartCoreCause = null;
+            generateMandalartButton.style.display = 'none';
+            generateMandalartButton.disabled = true;
+            mandalartContainer.style.display = 'none';
+            expandMandalartButton.style.display = 'none';
+            expandMandalartButton.disabled = true;
+            showAccidentDetailsButton.style.display = 'none';
+            globalMandalartData = null;
+            globalAccidentDetails = null;
+        }
+
+        // 초기 로드
+        document.addEventListener('DOMContentLoaded', () => {
+            populateSelect(industrySelect, industryOptions);
+            populateSelect(workTypeSelect, workTypeOptions);
+            populateSelect(workCharacteristicSelect, workCharacteristicOptions);
+
+            coreCausesSelect.addEventListener('change', selectCoreCauseForMandalart);
+            resetAll(); // Call reset to set initial state
+        });
+
+        // 재해 정보 생성 버튼 클릭
+        generateOverviewButton.addEventListener('click', async () => {
+            const selectedIndustry = industrySelect.value;
+            const selectedWorkType = workTypeSelect.value;
+            const selectedWorkCharacteristic = workCharacteristicSelect.value;
+
+            if (!selectedIndustry || !selectedWorkType || !selectedWorkCharacteristic) {
+                messageElement.textContent = '모든 항목을 선택해주세요.';
+                messageElement.style.display = 'block';
+                return;
+            }
+
+            // UI 상태 업데이트 (로딩 시작)
+            messageElement.style.display = 'none';
+            accidentDetailsDiv.style.display = 'none';
+            loadingSpinner.style.display = 'block';
+            generateOverviewButton.disabled = true;
+            resetButton.disabled = true;
+            mandalartContainer.style.display = 'none';
+
+
+            try {
+                let prompt = `다음 산업 환경을 기반으로 발생 가능한 산업재해에 대해 구체적인 재해 개요, 주요 원인, 예방 대책, 예상 물적 손실, 예상 인적 피해를 생성해주세요.
+                재해 개요는 6하원칙(누가, 언제, 어디서, 무엇을, 왜, 어떻게)에 따라 상세하게 작성해주세요. 사업장 이름은 'ABC(주)', '(주)XYZ'와 같은 형식으로, 사람 이름은 '김OO', '이OO'과 같은 형식으로 작성해주세요.
+                마치 산업안전보건공단의 AI 예측 시스템이나 고용노동부의 산업재해 통계자료, "https://ulsansafety.tistory.com/category/사고사례" 블로그를 참고하여, 사실적이고 상세하게 작성해주세요.
+                또한, 이 재해의 가장 중요한 핵심 원인 2가지(간결하게)를 JSON 배열 형태로 'aiSelectedCoreCauses' 필드에 추가해주세요.
+                각 항목은 다음 JSON 형식에 맞춰 제공해주세요:
+                {
+                  "overview": "재해 유형과 발생 상황, 예상되는 결과를 포함한 상세 개요 (6하원칙 준수)",
+                  "mainCauses": ["재해 발생의 주요 원인 1", "재해 발생의 주요 원인 2", "..."],
+                  "preventionMeasures": ["재해를 예방하기 위한 구체적인 대책 1", "재해를 예방하기 위한 구체적인 대책 2", "..."],
+                  "aiSelectedCoreCauses": ["핵심 원인 1", "핵심 원인 2"],
+                  "materialLoss": "예상되는 물적 손실 (구체적인 금액 또는 범위, 예: 5천만원 ~ 1억원)",
+                  "humanInjury": "예상되는 인적 피해 (구체적인 부상 정도 또는 사망자 수, 예: 중상 1명, 경상 2명)"
+                }
+                업종: ${selectedIndustry}
+                작업유형: ${selectedWorkType}
+                작업특성: ${selectedWorkCharacteristic}`;
+
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+
+                const payload = {
+                    contents: chatHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "overview": { "type": "STRING" },
+                                "mainCauses": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "preventionMeasures": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "aiSelectedCoreCauses": { "type": "ARRAY", "items": { "type": "STRING" } },
+                                "materialLoss": { "type": "STRING" },
+                                "humanInjury": { "type": "STRING" }
+                            }
+                        }
+                    }
+                };
+
+                const apiKey = "AIzaSyDXQi-WDl4GklWpWdbVzWnxjeApNru1-u0"; // API 키는 런타임에 자동으로 제공됩니다.
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]) {
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    const parsedJson = JSON.parse(jsonText);
+                    globalAccidentDetails = parsedJson;
+
+                    overviewText.textContent = parsedJson.overview || '';
+                    accidentDetailsDiv.style.display = 'block';
+
+                    aiSelectedCoreCauses = parsedJson.aiSelectedCoreCauses || [];
+                    populateSelect(coreCausesSelect, aiSelectedCoreCauses);
+                    coreCausesSelectionDiv.style.display = 'block';
+                    selectedCoreCauseDisplay.style.display = 'none';
+                    coreCausesSelect.style.display = 'block';
+
+                    generateMandalartButton.style.display = 'block';
+                    generateMandalartButton.disabled = true;
+                } else {
+                    messageElement.textContent = '재해 정보를 생성하는 데 실패했습니다. 다시 시도해주세요.';
+                    messageElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('API 호출 중 오류 발생:', error);
+                messageElement.textContent = '재해 정보를 생성하는 중 오류가 발생했습니다.';
+                messageElement.style.display = 'block';
+            } finally {
+                loadingSpinner.style.display = 'none';
+                generateOverviewButton.disabled = false;
+                resetButton.disabled = false;
+            }
+        });
+
+        // 계층별 퍼즐 생성 버튼 클릭
+        generateMandalartButton.addEventListener('click', async () => {
+            if (!selectedMandalartCoreCause) {
+                messageElement.textContent = '핵심 원인을 선택해주세요.';
+                messageElement.style.display = 'block';
+                return;
+            }
+
+            mandalartLoadingSpinner.style.display = 'block';
+            generateMandalartButton.disabled = true;
+            generateOverviewButton.disabled = true;
+            resetButton.disabled = true;
+            mandalartContainer.style.display = 'none';
+
+            try {
+                const mandalartPrompt = `다음 산업재해 정보와 사용자가 선택한 핵심 주제 "${selectedMandalartCoreCause}"를 바탕으로 계층별 퍼즐 분석을 위한 JSON 데이터를 생성해주세요.
+                JSON 형식은 다음과 같습니다:
+                {
+                  "centralTheme": "선택된 핵심 주제",
+                  "mainCategories": [
+                    { "name": "세부 원인 1", "subCauses": ["구체적 원인 1-1", ..., "구체적 원인 1-8"] },
+                    { "name": "세부 원인 2", "subCauses": ["구체적 원인 2-1", ..., "구체적 원인 2-8"] },
+                    { "name": "세부 원인 3", "subCauses": ["..."] },
+                    { "name": "세부 원인 4", "subCauses": ["..."] },
+                    { "name": "세부 원인 5", "subCauses": ["..."] },
+                    { "name": "세부 원인 6", "subCauses": ["..."] },
+                    { "name": "세부 원인 7", "subCauses": ["..."] },
+                    { "name": "세부 원인 8", "subCauses": ["..."] }
+                  ]
+                }
+                제공된 재해 정보를 종합적으로 고려하여, 선택된 핵심 주제 "${selectedMandalartCoreCause}"를 중앙 주제로 설정하고, 이와 관련된 8가지 핵심 세부 원인(mainCategories)을 생성해주세요. 각 세부 원인에 대해 다시 8가지의 매우 구체적이고 실질적인 구체적 원인(subCauses)을 생성해주세요.
+
+                재해 정보: ${JSON.stringify(globalAccidentDetails)}`;
+
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: mandalartPrompt }] });
+
+                const payload = {
+                    contents: chatHistory,
+                    generationConfig: {
+                        responseMimeType: "application/json",
+                        responseSchema: {
+                            type: "OBJECT",
+                            properties: {
+                                "centralTheme": { "type": "STRING" },
+                                "mainCategories": {
+                                    "type": "ARRAY",
+                                    "items": {
+                                        "type": "OBJECT",
+                                        "properties": {
+                                            "name": { "type": "STRING" },
+                                            "subCauses": { "type": "ARRAY", "items": { "type": "STRING" } }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                };
+
+                const apiKey = "AIzaSyDXQi-WDl4GklWpWdbVzWnxjeApNru1-u0"; // API 키는 런타임에 자동으로 제공됩니다.
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const result = await response.json();
+
+                if (result.candidates && result.candidates[0]?.content?.parts?.[0]) {
+                    const jsonText = result.candidates[0].content.parts[0].text;
+                    const parsedJson = JSON.parse(jsonText);
+                    globalMandalartData = parsedJson;
+                    renderMandalart3x3(globalMandalartData);
+                    expandMandalartButton.style.display = 'block';
+                    expandMandalartButton.disabled = false;
+
+                    selectedCoreCauseDisplay.textContent = `핵심원인: ${selectedMandalartCoreCause}`;
+                    selectedCoreCauseDisplay.style.display = 'block';
+                    coreCausesSelect.style.display = 'none';
+                } else {
+                    messageElement.textContent = '계층별 퍼즐 데이터를 생성하는 데 실패했습니다.';
+                    messageElement.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('API 호출 중 오류 발생:', error);
+                messageElement.textContent = '계층별 퍼즐 생성 중 오류가 발생했습니다.';
+                messageElement.style.display = 'block';
+            } finally {
+                mandalartLoadingSpinner.style.display = 'none';
+                generateMandalartButton.disabled = false;
+                generateOverviewButton.disabled = false;
+                resetButton.disabled = false;
+            }
+        });
+        
+        // 기타 이벤트 리스너 (확장, 모달 닫기 등)
+        expandMandalartButton.addEventListener('click', () => {
+            if (globalMandalartData) {
+                if (!isMandalartExpanded) renderMandalart9x9(globalMandalartData);
+                else renderMandalart3x3(globalMandalartData);
+            }
+        });
+
+        closeSubMandalartModalButton.addEventListener('click', closeSubMandalartModal);
+        subMandalartModal.addEventListener('click', (event) => {
+            if (event.target === subMandalartModal) closeSubMandalartModal();
+        });
+
+        resetButton.addEventListener('click', resetAll);
+
+        showAccidentDetailsButton.addEventListener('click', () => {
+            if (!globalAccidentDetails || !globalMandalartData) {
+                messageElement.textContent = '표시할 데이터가 없습니다.';
+                messageElement.style.display = 'block';
+                return;
+            }
+
+            modalOverviewText.textContent = globalAccidentDetails.overview || '';
+            modalCoreCause.textContent = selectedMandalartCoreCause || '정보 없음';
+            modalMaterialLoss.textContent = globalAccidentDetails.materialLoss || '정보 없음';
+            modalHumanInjury.textContent = globalAccidentDetails.humanInjury || '정보 없음';
+            if(modalSubCausesCoreCause) {
+                modalSubCausesCoreCause.textContent = selectedMandalartCoreCause || '정보 없음';
+            }
+
+            modalMainCausesList.innerHTML = '';
+            globalAccidentDetails.mainCauses?.forEach(cause => {
+                const li = document.createElement('li');
+                li.textContent = `- ${cause.trim()}`;
+                modalMainCausesList.appendChild(li);
+            });
+
+            modalPreventionMeasuresList.innerHTML = '';
+            globalAccidentDetails.preventionMeasures?.forEach(measure => {
+                const li = document.createElement('li');
+                li.textContent = `- ${measure.trim()}`;
+                modalPreventionMeasuresList.appendChild(li);
+            });
+
+            modalSubCausesTableBody.innerHTML = '';
+            globalMandalartData.mainCategories?.forEach(mainCat => {
+                const row = document.createElement('tr');
+                const mainCauseCell = document.createElement('td');
+                mainCauseCell.textContent = mainCat.name;
+                row.appendChild(mainCauseCell);
+
+                const subCausesCell = document.createElement('td');
+                const ul = document.createElement('ul');
+                ul.classList.add('bullet-list');
+                mainCat.subCauses?.forEach(subCause => {
+                    const li = document.createElement('li');
+                    li.textContent = `- ${subCause.trim()}`;
+                    ul.appendChild(li);
+                });
+                subCausesCell.appendChild(ul);
+                row.appendChild(subCausesCell);
+                modalSubCausesTableBody.appendChild(row);
+            });
+
+            accidentDetailsModal.style.display = 'flex';
+        });
+
+        closeAccidentDetailsModalButton.addEventListener('click', () => {
+            accidentDetailsModal.style.display = 'none';
+        });
+
+        accidentDetailsModal.addEventListener('click', (event) => {
+            if (event.target === accidentDetailsModal) {
+                accidentDetailsModal.style.display = 'none';
+            }
+        });
+    </script>
+</body>
+</html>

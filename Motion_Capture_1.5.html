@@ -1,0 +1,1208 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>비디오 프레임 캡처</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-core"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-converter"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-webgl"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs-backend-wasm"></script>
+
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f5f5; color: #333; }
+    .container { max-width: 1200px; /* 컨테이너 너비 확장 */ margin: 40px auto; padding: 20px; background: #fff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+    h1 { font-size: 1.8rem; margin-bottom: 1rem; text-align: center; }
+    .main-content { display: flex; gap: 20px; }
+    .side-left { flex: 0 0 60%; } /* 비디오 영역 조정 */
+    .side-right { flex: 0 0 40%; } /* 컨트롤 영역 조정 */
+    .file-control { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+    .file-btn { padding: 8px 12px; font-size: 1rem; border: none; border-radius: 4px; cursor: pointer; background: #007bff; color: #fff; text-decoration: none; }
+    .file-btn:disabled { background: #ccc; cursor: not-allowed; }
+    #fileNameDisplay { font-size: 1.1rem; color: #555; }
+    #videoContainer { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+    #video { 
+      width: 300px; /* 고정 너비 */
+      height: auto; /* 원본 비율 유지 */
+      max-height: 200px; /* 세로가 길어도 너무 길어지지 않게 최대 높이 제한 (필요시 조절) */
+      object-fit: contain; /* 비율 유지하며 컨테이너에 맞춤 */
+      display: none; 
+      border-radius: 8px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1); 
+    }
+    #durationDisplay { font-size: 1.1rem; font-weight: bold; color: #555; }
+    #fpsDisplay { font-size: 1.1rem; font-weight: bold; color: red; margin-left: 10px; } /* 붉은색 FPS 정보 */
+    
+    /* 기존 스타일에서 변경 */
+    .side-right .control-group { 
+        display: flex; 
+        align-items: center; 
+        gap: 10px; 
+        margin-bottom: 10px; /* 간격 축소 */
+        flex-wrap: wrap; /* 작은 화면에서 줄바꿈 */
+    }
+    .side-right label { font-size: 1.1rem; min-width: 180px; } /* 레이블 너비 확보 및 폰트 1.2배 */
+    .side-right input { width: 60px; font-size: 1.1rem; padding: 4px; } /* 입력 필드 폰트 1.2배 */
+    .side-right span { font-size: 1.1rem; color: #555; } /* span 폰트 1.2배 */
+    .action-control { display: flex; gap: 10px; margin-top: 20px; } /* 액션 버튼 그룹 상단 마진 추가 */
+
+    #gallery {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+      gap: 10px;
+      margin-top: 20px;
+      justify-content: flex-start; /* 선택된 이미지들을 왼쪽 정렬 */
+    }
+    .thumb-wrapper {
+      position: relative;
+      width: 100px;
+      height: 100px;
+      overflow: hidden;
+      border: 2px solid #ccc;
+      border-radius: 4px;
+      transition: border-color 0.2s;
+      display: flex; /* Flexbox 추가 */
+      flex-direction: column; /* 체크박스를 아래로 배치하기 위해 */
+      align-items: center; /* 이미지 수평 중앙 정렬 */
+      justify-content: flex-start; /* 이미지를 상단에 배치 (체크박스 공간 확보) */
+      padding-bottom: 20px; /* Space for the checkbox */
+      background-color: #fff; /* 배경색 추가 */
+    }
+    .thumb {
+      max-width: 100%; /* 너비 최대 100% */
+      max-height: 100%; /* 높이 최대 100% */
+      object-fit: contain; /* 핵심: 비율 유지하며 컨테이너에 맞춤 */
+      cursor: pointer;
+      display: block; /* 이미지의 여백을 제거하고 중앙 정렬을 돕기 위해 */
+    }
+    .thumb-wrapper:hover { border-color: #007bff; }
+    .checkbox-container {
+      margin-top: 5px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      width: 100%;
+      justify-content: center;
+      position: absolute;
+      bottom: 0;
+      background: rgba(255,255,255,0.8);
+      padding: 2px 0;
+      box-sizing: border-box;
+    }
+    .checkbox-container input[type="checkbox"] {
+        margin: 0;
+    }
+    #conversionStatus { margin-top: 10px; font-weight: bold; text-align: center; }
+    .error { color: red; }
+    #modal { display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0, 0, 0, 0.8); justify-content: center; align-items: center; z-index: 1000;}
+    #modal img { max-width: 90%; max-height: 90%; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+
+    /* New styles for grouping */
+    #groupControls {
+        margin-top: 20px;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+        justify-content: space-between; /* 버튼들을 양쪽 끝으로 정렬 */
+    }
+    #groupControls .left-buttons { /* 버튼들을 묶는 div 추가 */
+        display: flex;
+        gap: 10px;
+    }
+    #groupControls button {
+        padding: 8px 12px;
+        font-size: 1rem;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        background: #28a745;
+        color: #fff;
+    }
+    #groupControls button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+    #addEmptyGroupBtn { /* 빈 그룹 추가 버튼 스타일 */
+        background: #6c757d; /* 회색 계열 */
+    }
+    #addEmptyGroupBtn:disabled {
+        background: #ccc;
+    }
+
+/* [추가] AI 자동 그룹화 버튼 스타일 (보라색 포인트) */
+    #autoGroupBtn {
+        background: #6f42c1; /* 보라색 */
+        color: #fff;
+    }
+    #autoGroupBtn:hover {
+        background: #5a32a3;
+    }
+    #autoGroupBtn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+    }
+
+
+    .grouped-images-container {
+        margin-top: 20px;
+        border-top: 1px solid #eee;
+        padding-top: 20px;
+    }
+    .image-group { /* 개별 그룹 컨테이너 */
+        border: 1px solid #ddd;
+        padding: 10px;
+        margin-bottom: 15px;
+        border-radius: 5px;
+        background: #f9f9f9;
+        display: flex; /* Flexbox for group layout */
+        align-items: flex-start; /* Align items to the top */
+        gap: 15px; /* Gap between columns */
+        min-height: 170px; /* 그룹 컨테이너 최소 높이 (대표 이미지 + 여백) */
+    }
+    .group-left-section { /* 대표 이미지 및 비율 정보 섹션 */
+        flex: 0 0 auto;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 10px;
+        min-width: 150px; /* 대표 이미지 너비 확보 */
+        text-align: center;
+        padding-right: 15px; /* 오른쪽 여백 */
+        border-right: 1px solid #eee; /* 구분선 추가 */
+    }
+    .representative-image-display {
+        width: 150px; /* 대표 이미지 크기 */
+        height: 150px;
+        overflow: hidden;
+        border: 1px solid #007bff;
+        border-radius: 4px;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #e6f7ff;
+        cursor: pointer;
+    }
+    .representative-image-display img {
+        max-width: 100%;
+        max-height: 100%;
+        object-fit: contain; /* 이미지 비율 유지 */
+    }
+    .group-info { /* 비율 정보 */
+        font-size: 0.95rem;
+        color: #555;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+    }
+    .group-content { /* 그룹 내 이미지 갤러리 */
+        flex: 1; /* 나머지 공간 차지 */
+        display: flex;
+        flex-wrap: wrap;
+        gap: 5px;
+        align-items: center;
+        justify-content: flex-start; /* 왼쪽 정렬 */
+    }
+    .group-thumb-wrapper {
+        width: 100px; /* Grouped thumbnail size */
+        height: 100px; /* Grouped thumbnail size */
+        overflow: hidden;
+        border: 1px solid #aaa;
+        border-radius: 3px;
+        background-color: #fff;
+        cursor: grab; /* 드래그 가능 커서 */
+        display: flex; /* Flexbox 추가 */
+        justify-content: center; /* 내부 이미지 수평 중앙 정렬 */
+        align-items: center; /* 내부 이미지 수직 중앙 정렬 */
+    }
+    .group-thumb {
+        max-width: 100%; /* 너비 최대 100% */
+        max-height: 100%; /* 높이 최대 100% */
+        object-fit: contain; /* 핵심: 비율 유지하며 컨테이너에 맞춤 */
+    }
+
+    /* Drag & Drop Feedback */
+    .group-thumb-wrapper.dragging {
+        opacity: 0.5;
+        border: 2px dashed #007bff;
+    }
+    .image-group.drag-over {
+        background: #e0ffe0; /* 드래그 오버 시 배경색 변경 */
+        border: 2px dashed #28a745;
+    }
+
+    #videoInput { display: none; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>작업자세 분석을 위한 비디오 프레임 캡처</h1>
+    <div class="main-content">
+      <div class="side-left">
+        <div class="file-control">
+          <label for="videoInput" class="file-btn">비디오 파일 선택</label>
+          <input type="file" id="videoInput" accept="video/*" />
+          <span id="fileNameDisplay">선택된 파일 없음</span>
+        </div>
+        <div id="videoContainer">
+          <video id="video" muted controls></video>
+          <div id="durationDisplay">비디오 길이: -</div>
+          <div id="fpsDisplay">FPS: -</div>
+        </div>
+      </div>
+      <div class="side-right">
+        <div class="control-group">
+          <label>▶ 초당 캡처 가능 수 :</label>
+          <span id="predictedCount"><strong>-</strong> 개</span>
+        </div>
+        <div class="control-group">
+          <label>▶ 프레임당 캡처 가능 수 :</label>
+          <span id="totalFramesEstimate"><strong>-</strong> 개</span>
+        </div>
+        <div class="control-group">
+          <label for="count">▶ 실제 캡처할 갯수 :</label>
+          <input type="number" id="count" placeholder="예: 10" min="1" disabled />
+        </div>
+        <div class="action-control">
+          <button id="captureBtn" class="file-btn" disabled>캡처 실행</button>
+          <button id="resetBtn" class="file-btn" disabled>초기화</button>
+          <button id="saveBtn" class="file-btn" disabled>캡처 저장</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="conversionStatus"></div>
+    <a id="downloadLink" style="display:none; text-align:center; margin-top:10px;">변환된 비디오 다운로드</a>
+
+    <div id="gallery"></div>
+
+    <div id="groupControls">
+        <div class="left-buttons">
+            <button id="createGroupBtn" disabled>선택된 이미지 그룹 생성</button>
+
+<div style="display: flex; align-items: center; margin-left: 10px; background: #e3f2fd; padding: 5px 10px; border-radius: 4px; border: 1px solid #90caf9;">
+    <label for="thresholdInput" style="font-size: 1rem; margin-right: 5px; min-width: auto; cursor: help;" title="값이 작을수록 엄격하게(조금만 움직여도 다른 그룹) 분류합니다.">📏 허용 오차(픽셀):</label>
+    <input type="number" id="thresholdInput" min="10" max="100" step="5" value="30" style="width: 65px; text-align: center; border: 1px solid #ccc; border-radius: 3px; font-size: 1rem; margin-right: 5px;">
+            <button id="autoGroupBtn" disabled>✨ AI 자동 그룹화</button>
+    </div>
+
+            <div id="totalGroupedRatio">그룹화된 이미지 총 비율: 0%</div>
+        </div>
+        <button id="addEmptyGroupBtn" disabled>빈 그룹 추가</button>
+    </div>
+
+    <div id="groupedImagesContainer" class="grouped-images-container">
+    </div>
+
+  </div>
+  <canvas id="canvas" style="display:none;"></canvas>
+  <div id="modal" onclick="this.style.display='none'"><img id="modalImg" src="" /></div>
+  <script>
+    const videoInput = document.getElementById('videoInput');
+    const fileNameDisplay = document.getElementById('fileNameDisplay');
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('canvas');
+    const gallery = document.getElementById('gallery');
+    const durationDisplay = document.getElementById('durationDisplay');
+    const fpsDisplay = document.getElementById('fpsDisplay');
+    const predictedCount = document.getElementById('predictedCount');
+    const totalFramesEstimate = document.getElementById('totalFramesEstimate');
+    const countInput = document.getElementById('count');
+    const captureBtn = document.getElementById('captureBtn');
+    const resetBtn = document.getElementById('resetBtn');
+    const saveBtn = document.getElementById('saveBtn');
+    const conversionStatus = document.getElementById('conversionStatus');
+    const downloadLink = document.getElementById('downloadLink'); 
+
+    const createGroupBtn = document.getElementById('createGroupBtn');
+    const autoGroupBtn = document.getElementById('autoGroupBtn');
+    const addEmptyGroupBtn = document.getElementById('addEmptyGroupBtn'); 
+    const groupedImagesContainer = document.getElementById('groupedImagesContainer');
+    const totalGroupedRatioDisplay = document.getElementById('totalGroupedRatio');
+
+// [추가] AI 모델 관련 변수 및 초기화
+    let net = null; // AI 모델을 담을 변수
+
+// [수정된 버전] MoveNet 모델 로드 함수
+    async function loadAIModel() {
+        console.log("MoveNet 모델 로딩 시작...");
+        
+        // 상태 표시
+        conversionStatus.textContent = "AI 엔진을 준비 중입니다...";
+
+        try {
+            // 1. 먼저 WebGL(그래픽카드 가속) 시도
+            await tf.setBackend('webgl');
+            console.log("현재 사용 중인 백엔드: WebGL");
+        } catch (e) {
+            console.warn("WebGL 사용 불가. WASM 모드로 전환합니다.", e);
+            try {
+                // 2. 실패 시 WASM(CPU 가속) 시도
+                await tf.setBackend('wasm');
+                console.log("현재 사용 중인 백엔드: WASM");
+            } catch (err) {
+                // 3. 최후의 수단 CPU
+                await tf.setBackend('cpu');
+                console.log("현재 사용 중인 백엔드: CPU (속도가 느릴 수 있음)");
+            }
+        }
+
+        try {
+            // 모델 설정 및 로드
+            const model = poseDetection.SupportedModels.MoveNet;
+            const detectorConfig = {
+                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING
+            };
+            detector = await poseDetection.createDetector(model, detectorConfig);
+            
+            console.log("MoveNet 모델 로딩 완료!");
+            conversionStatus.textContent = ""; // 문구 지움
+            
+            // 이미 캡처된 이미지가 있다면 버튼 활성화
+            if(capturedFramesData.length > 0) {
+                 autoGroupBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error("MoveNet 로딩 실패:", error);
+            conversionStatus.textContent = "AI 모델 로딩 실패 (인터넷 연결 확인 필요)";
+            conversionStatus.classList.add('error');
+            alert("AI 모델을 불러오지 못했습니다. 인터넷 연결을 확인하거나 'Live Server'를 이용해 실행해주세요.");
+        }
+    }    // 페이지 로드 시 모델 불러오기 시작
+    loadAIModel();
+
+
+    let currentVideoFile = null;
+    let capturedFramesData = []; 
+    let groups = []; 
+    let draggedFrameId = null;
+    let videoFPS = 0;
+    const FPS_MEASUREMENT_MIN_DURATION = 0.5;
+
+    video.addEventListener('wheel', e => e.preventDefault());
+
+    function disableControls() {
+      countInput.disabled = true;
+      captureBtn.disabled = true;
+      resetBtn.disabled = true;
+      saveBtn.disabled = true;
+      createGroupBtn.disabled = true;
+      addEmptyGroupBtn.disabled = true; 
+    }
+
+    function enableControls() {
+        countInput.disabled = false;
+        resetBtn.disabled = false;
+    }
+
+    videoInput.addEventListener('change', async () => {
+      resetBtn.disabled = true;
+      saveBtn.disabled = true;
+      countInput.value = '';
+      predictedCount.innerHTML = '<strong>-</strong>';
+      totalFramesEstimate.innerHTML = '<strong>-</strong>';
+      gallery.innerHTML = '';
+      conversionStatus.textContent = ''; 
+      conversionStatus.classList.remove('error');
+      downloadLink.style.display = 'none';
+      groupedImagesContainer.innerHTML = '';
+      groups = [];
+      capturedFramesData = [];
+      updateTotalGroupedRatio();
+      createGroupBtn.disabled = true;
+      addEmptyGroupBtn.disabled = true; 
+      videoFPS = 0;
+      fpsDisplay.textContent = 'FPS: -';
+      stopMeasuringFPS(); 
+      disableControls(); 
+
+      const file = videoInput.files[0];
+      if (!file) return;
+      currentVideoFile = file;
+      fileNameDisplay.textContent = file.name;
+      const url = URL.createObjectURL(file);
+      video.src = url;
+      video.load(); 
+      video.style.display = 'block';
+
+      video.onerror = function() {
+        console.error("비디오 재생 오류 발생. 해당 브라우저에서는 재생할 수 없습니다.");
+        conversionStatus.textContent = '해당 브라우저에서는 재생할 수 없습니다.';
+        conversionStatus.classList.add('error');
+        fpsDisplay.textContent = 'FPS: 재생 불가';
+        videoFPS = 0;
+        disableControls(); 
+        updatePredictedCount();
+      };
+
+      video.addEventListener('loadedmetadata', function handler() {
+        durationDisplay.textContent = `비디오 길이: ${formatDuration(video.duration)}`;
+        
+        if (video.videoHeight > video.videoWidth * 1.2) { 
+            video.style.width = '300px'; 
+            video.style.height = '180px';
+            video.style.objectFit = 'contain';
+        } else {
+            video.style.width = '300px';
+            video.style.height = 'auto';
+            video.style.objectFit = 'contain';
+        }
+
+        if (video.videoWidth === 0 || video.videoHeight === 0) {
+            console.error("비디오 메타데이터 문제: 유효한 크기를 가져오지 못했습니다.");
+            conversionStatus.textContent = '해당 브라우저에서는 재생할 수 없습니다.';
+            conversionStatus.classList.add('error');
+            fpsDisplay.textContent = 'FPS: 재생 불가';
+            videoFPS = 0;
+            disableControls(); 
+            updatePredictedCount();
+        } else {
+            fpsDisplay.textContent = 'FPS: 영상 재생 필요'; 
+            conversionStatus.textContent = ''; 
+            conversionStatus.classList.remove('error');
+            enableControls(); 
+            updatePredictedCount();
+        }
+        
+        this.removeEventListener('loadedmetadata', handler);
+      });
+
+      video.onplay = () => {
+          if (!measuringFPS && videoFPS === 0) {
+              fpsDisplay.textContent = 'FPS: 측정 중...';
+              measureVideoFPS(); 
+          } else if (videoFPS > 0 && !measuringFPS) {
+              fpsDisplay.textContent = `FPS: ${videoFPS.toFixed(2)}`;
+          }
+          conversionStatus.textContent = ''; 
+          conversionStatus.classList.remove('error');
+      };
+      video.onpause = () => {
+          if (videoFPS === 0 && !measuringFPS) { 
+              fpsDisplay.textContent = 'FPS: 영상 재생 필요';
+          } else if (videoFPS > 0) {
+              fpsDisplay.textContent = `FPS: ${videoFPS.toFixed(2)}`;
+          }
+          stopMeasuringFPS(); 
+      };
+      video.onended = () => {
+          if (videoFPS === 0 && !measuringFPS) {
+              fpsDisplay.textContent = 'FPS: 영상 재생 필요';
+          } else if (videoFPS > 0) {
+              fpsDisplay.textContent = `FPS: ${videoFPS.toFixed(2)}`;
+          }
+          stopMeasuringFPS(); 
+      };
+    });
+
+    let frameTimes = [];
+    let animationFrameId = null;
+    let measuringFPS = false;
+
+    function measureVideoFPS() {
+        if (!video.requestVideoFrameCallback || measuringFPS) return;
+        
+        measuringFPS = true;
+        frameTimes = [];
+        fpsDisplay.textContent = 'FPS: 측정 중...';
+
+        const callback = (now, metadata) => {
+            if (metadata.mediaTime > 0.05) { 
+                frameTimes.push(metadata.mediaTime);
+            }
+            
+            if (!video.paused && !video.ended && measuringFPS) {
+                if (frameTimes.length > 1 && (frameTimes[frameTimes.length - 1] - frameTimes[0]) >= FPS_MEASUREMENT_MIN_DURATION) {
+                    stopMeasuringFPS(true); 
+                } else {
+                    animationFrameId = video.requestVideoFrameCallback(callback);
+                }
+            } else {
+                stopMeasuringFPS(); 
+            }
+        };
+
+        animationFrameId = video.requestVideoFrameCallback(callback);
+    }
+
+    function stopMeasuringFPS(measurementCompleted = false) {
+        if (animationFrameId) {
+            cancelAnimationFrame(animationFrameId);
+            animationFrameId = null;
+        }
+        
+        measuringFPS = false;
+
+        if (measurementCompleted && frameTimes.length > 1) {
+            const firstTime = frameTimes[0];
+            const lastTime = frameTimes[frameTimes.length - 1];
+            const durationMeasured = lastTime - firstTime;
+            
+            if (durationMeasured >= FPS_MEASUREMENT_MIN_DURATION) {
+                videoFPS = (frameTimes.length - 1) / durationMeasured;
+                console.log(`재생 기반 측정 FPS: ${videoFPS.toFixed(2)}`);
+                fpsDisplay.textContent = `FPS: ${videoFPS.toFixed(2)}`;
+                video.pause(); 
+                conversionStatus.textContent = ''; 
+                conversionStatus.classList.remove('error');
+            } else {
+                videoFPS = 0;
+                console.warn("FPS 측정 시간 부족. '영상 재생 필요' 상태 유지.");
+                fpsDisplay.textContent = 'FPS: 영상 재생 필요';
+                conversionStatus.textContent = ''; 
+                conversionStatus.classList.remove('error');
+            }
+        } else if (videoFPS === 0) {
+             if (!conversionStatus.textContent.includes('재생할 수 없습니다')) {
+                 fpsDisplay.textContent = 'FPS: 영상 재생 필요';
+                 conversionStatus.textContent = ''; 
+                 conversionStatus.classList.remove('error');
+             }
+        }
+        updatePredictedCount();
+    }
+
+    countInput.addEventListener('input', updatePredictedCount);
+
+    function updatePredictedCount() {
+      const duration = video.duration || 0;
+      const currentFPS = videoFPS;
+      const count = parseInt(countInput.value, 10) || 0;
+
+      let capturesPerSecondDisplay = '-';
+      let totalFramesDisplay = '-';
+
+      if (duration > 0) {
+        const capturesPerSecondValue = Math.round(duration); 
+        capturesPerSecondDisplay = capturesPerSecondValue.toLocaleString('ko-KR');
+      }
+      
+      if (duration > 0 && currentFPS > 0) {
+        const totalFramesValue = Math.floor(duration * currentFPS);
+        totalFramesDisplay = totalFramesValue.toLocaleString('ko-KR');
+      }
+      
+      predictedCount.innerHTML = `<strong>${capturesPerSecondDisplay}</strong>`;
+      totalFramesEstimate.innerHTML = `<strong>${totalFramesDisplay}</strong>`;
+
+      captureBtn.disabled = !(currentFPS > 0 && count > 0); 
+    }
+
+    captureBtn.addEventListener('click', () => {
+      const count = parseInt(countInput.value, 10);
+
+      if (videoFPS === 0) {
+          alert('프레임 속도(FPS)를 알 수 없습니다. 비디오를 재생하여 FPS를 측정해 주세요.');
+          return;
+      }
+      
+      if (!(count > 0)) {
+          alert('실제 캡처할 갯수를 올바르게 입력하세요.');
+          return;
+      }
+
+      stopMeasuringFPS(); 
+      fpsDisplay.textContent = 'FPS: 캡처 중...'; 
+      
+      gallery.innerHTML = '';
+      capturedFramesData = []; 
+      groups = []; 
+      groupedImagesContainer.innerHTML = '';
+      updateTotalGroupedRatio(); 
+      createGroupBtn.disabled = true;
+      addEmptyGroupBtn.disabled = true; 
+      autoGroupBtn.disabled = true;
+      conversionStatus.textContent = ''; 
+      conversionStatus.classList.remove('error');
+
+      captureFramesEquallySpaced(count);
+      resetBtn.disabled = false;
+      saveBtn.disabled = false;
+    });
+
+    resetBtn.addEventListener('click', () => {
+      gallery.innerHTML = '';
+      countInput.value = '';
+      video.currentTime = 0;
+      predictedCount.innerHTML = '<strong>-</strong>';
+      totalFramesEstimate.innerHTML = '<strong>-</strong>';
+      saveBtn.disabled = true;
+      resetBtn.disabled = true;
+      capturedFramesData = [];
+      groupedImagesContainer.innerHTML = '';
+      groups = [];
+      updateTotalGroupedRatio(); 
+      createGroupBtn.disabled = true;
+      addEmptyGroupBtn.disabled = true; 
+      videoFPS = 0;
+      fpsDisplay.textContent = 'FPS: -'; 
+      stopMeasuringFPS(); 
+      captureBtn.disabled = true;
+      conversionStatus.textContent = ''; 
+      conversionStatus.classList.remove('error');
+      currentVideoFile = null;
+    });
+
+    function captureFramesEquallySpaced(count) {
+        const duration = video.duration;
+        const currentFPS = videoFPS;
+        const times = [];
+
+        if (duration <= 0 || count <= 0 || currentFPS <= 0) return;
+
+        const interval = duration / count;
+
+        for (let i = 0; i < count; i++) {
+            let captureTime = (interval * i);
+            if (captureTime >= duration) {
+                captureTime = duration - (1 / currentFPS);
+                if (captureTime < 0) captureTime = 0;
+            }
+            times.push(captureTime);
+        }
+
+        times.sort((a, b) => a - b);
+        runCaptureSequence(times);
+    }
+
+
+    function runCaptureSequence(times) {
+      if (!times.length) {
+        createGroupBtn.disabled = false; 
+
+      if (detector) autoGroupBtn.disabled = false;
+
+        updateAddEmptyGroupButtonState(); 
+        if (videoFPS > 0) {
+             fpsDisplay.textContent = `FPS: ${videoFPS.toFixed(2)}`; 
+        } else {
+             fpsDisplay.textContent = 'FPS: 영상 재생 필요';
+        }
+        return;
+      }
+      const time = times.shift();
+      const onSeeked = () => {
+        video.removeEventListener('seeked', onSeeked);
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+        const dataURL = canvas.toDataURL('image/jpeg');
+
+        const frameId = `frame_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        capturedFramesData.push({ id: frameId, src: dataURL, timestamp: time, isGrouped: false, groupId: null });
+
+        const imgWrapper = document.createElement('div');
+        imgWrapper.className = 'thumb-wrapper';
+        imgWrapper.dataset.frameId = frameId;
+
+        const img = new Image();
+        img.src = dataURL;
+        img.className = 'thumb';
+        img.onclick = () => showModal(dataURL);
+        imgWrapper.appendChild(img);
+
+        const checkboxContainer = document.createElement('div');
+        checkboxContainer.className = 'checkbox-container';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = `checkbox_${frameId}`;
+        checkbox.dataset.frameId = frameId;
+        checkboxContainer.appendChild(checkbox);
+        imgWrapper.appendChild(checkboxContainer);
+
+        gallery.appendChild(imgWrapper);
+        setTimeout(() => runCaptureSequence(times), 300);
+      };
+      video.addEventListener('seeked', onSeeked);
+      video.currentTime = time;
+    }
+
+    saveBtn.addEventListener('click', () => {
+        // 그룹화된 이미지와 그룹화되지 않은 이미지 모두를 저장 대상으로 고려
+        const imagesToSave = [];
+
+        // 갤러리에 남아있는 그룹화되지 않은 이미지들
+        gallery.querySelectorAll('.thumb-wrapper').forEach(wrapper => {
+            const frameId = wrapper.dataset.frameId;
+            const frameData = capturedFramesData.find(f => f.id === frameId);
+            if (frameData && !frameData.isGrouped) {
+                imagesToSave.push({
+                    src: frameData.src,
+                    filename: `ungrouped_${String(imagesToSave.length + 1).padStart(3, '0')}.jpg`
+                });
+            }
+        });
+
+        // 그룹 내의 이미지들
+        groups.forEach(group => {
+            group.frames.forEach((frame, index) => {
+                const groupName = `Group${group.id}`; // 그룹 ID를 파일명에 사용
+                imagesToSave.push({
+                    src: frame.src,
+                    filename: `${groupName}_${String(index + 1).padStart(3, '0')}.jpg`
+                });
+            });
+        });
+
+        if (imagesToSave.length === 0) {
+            alert('저장할 이미지가 없습니다.');
+            return;
+        }
+
+        // --- START OF CHANGE ---
+        // 브라우저가 짧은 시간에 너무 많은 다운로드를 차단하는 것을 방지하기 위해
+        // 순차적으로 이미지를 다운로드하는 함수입니다.
+        const downloadSequentially = (index) => {
+            if (index >= imagesToSave.length) {
+                // 모든 이미지 다운로드가 시작되었습니다.
+                return;
+            }
+
+            const imgInfo = imagesToSave[index];
+            const link = document.createElement('a');
+            link.href = imgInfo.src;
+            link.download = imgInfo.filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+
+            // 다음 다운로드 전에 약간의 지연 시간을 줍니다.
+            setTimeout(() => {
+                downloadSequentially(index + 1);
+            }, 300); // 각 다운로드 사이의 300ms 지연
+        };
+
+        alert(`${imagesToSave.length}개의 이미지를 저장합니다.`);
+        downloadSequentially(0); // 첫 번째 이미지부터 다운로드 시퀀스를 시작합니다.
+        // --- END OF CHANGE ---
+    });
+
+    createGroupBtn.addEventListener('click', () => {
+        const selectedCheckboxes = gallery.querySelectorAll('.thumb-wrapper input[type="checkbox"]:checked');
+        if (selectedCheckboxes.length === 0) {
+            alert('그룹으로 묶을 이미지를 하나 이상 선택하세요.');
+            return;
+        }
+
+        const newGroupFrames = [];
+        selectedCheckboxes.forEach(checkbox => {
+            const frameId = checkbox.dataset.frameId;
+            const frameData = capturedFramesData.find(f => f.id === frameId);
+            if (frameData && !frameData.isGrouped) {
+                newGroupFrames.push(frameData);
+                frameData.isGrouped = true;
+                checkbox.checked = false;
+                const thumbWrapper = checkbox.closest('.thumb-wrapper');
+                if (thumbWrapper) {
+                    thumbWrapper.remove();
+                }
+            } else if (frameData && frameData.isGrouped) {
+                 checkbox.checked = false;
+            }
+        });
+
+        if (newGroupFrames.length > 0) {
+            newGroupFrames.sort((a, b) => a.timestamp - b.timestamp);
+
+            let groupId = null;
+            for(let i=0; i<groups.length; i++) {
+                if (groups[i].frames.length === 0 && !groups[i].representativeSrc) { 
+                    groupId = groups[i].id;
+                    groups[i].frames = newGroupFrames;
+                    groups[i].representativeSrc = newGroupFrames[0].src;
+                    break;
+                }
+            }
+            if (groupId === null) {
+                groupId = groups.length > 0 ? Math.max(...groups.map(g => g.id)) + 1 : 1;
+                groups.push({
+                    id: groupId,
+                    frames: newGroupFrames,
+                    representativeSrc: newGroupFrames[0].src
+                });
+            }
+            newGroupFrames.forEach(frame => frame.groupId = groupId);
+            
+            renderGroups();
+            updateTotalGroupedRatio(); 
+            updateAddEmptyGroupButtonState(); 
+        } else {
+            alert('새로운 그룹을 생성할 선택된 이미지가 없습니다 (이미 그룹화되었을 수 있습니다).');
+        }
+    });
+
+// ==========================================
+    // [MoveNet] AI 자세 추정 엔진 로직 시작
+    // ==========================================
+
+    let detector = null; // MoveNet 감지기 변수
+
+    // 1. MoveNet 모델 로드 (페이지 로드 시 실행)
+    async function loadAIModel() {
+        console.log("MoveNet 모델 로딩 시작...");
+        try {
+            const model = poseDetection.SupportedModels.MoveNet;
+            const detectorConfig = {
+                modelType: poseDetection.movenet.modelType.SINGLEPOSE_LIGHTNING // 빠르고 가벼운 모델
+            };
+            detector = await poseDetection.createDetector(model, detectorConfig);
+            console.log("MoveNet 모델 로딩 완료!");
+            
+            // 모델 로드 성공 시 버튼 활성화 체크
+            if(capturedFramesData.length > 0) {
+                 autoGroupBtn.disabled = false;
+            }
+        } catch (error) {
+            console.error("MoveNet 로딩 실패:", error);
+            alert("AI 모델 로딩에 실패했습니다. (WebGL 미지원 또는 네트워크 오류)");
+        }
+    }
+    loadAIModel();
+
+    // 2. 두 자세(Pose) 사이의 거리를 계산하는 함수 (유클리드 거리 평균)
+    function calculatePoseDistance(poseA, poseB) {
+        // poseA, poseB는 keypoints 배열을 가지고 있음
+        const keypointsA = poseA.keypoints;
+        const keypointsB = poseB.keypoints;
+        
+        let totalDistance = 0;
+        let validPoints = 0;
+
+        // 17개의 관절 포인트를 비교
+        for (let i = 0; i < keypointsA.length; i++) {
+            const pA = keypointsA[i];
+            const pB = keypointsB[i];
+
+            // 신뢰도가 너무 낮은 관절(안 보이는 부위)은 계산에서 제외
+            if (pA.score > 0.3 && pB.score > 0.3) {
+                const dist = Math.sqrt(Math.pow(pA.x - pB.x, 2) + Math.pow(pA.y - pB.y, 2));
+                totalDistance += dist;
+                validPoints++;
+            }
+        }
+
+        if (validPoints === 0) return 9999; // 비교 불가능하면 아주 큰 값 반환
+        return totalDistance / validPoints; // 평균 거리 반환
+    }
+
+    // 이미지 로드 헬퍼 함수
+    function loadImage(src) {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = src;
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+        });
+    }
+
+    // 3. AI 자동 그룹화 버튼 클릭 이벤트 (MoveNet 버전)
+    autoGroupBtn.addEventListener('click', async () => {
+        if (!detector) { alert("AI 모델이 아직 준비되지 않았습니다."); return; }
+        if (capturedFramesData.length === 0) { alert("분석할 이미지가 없습니다."); return; }
+
+        const originalBtnText = autoGroupBtn.innerText;
+        autoGroupBtn.innerText = "🦴 뼈대 분석 중...";
+        autoGroupBtn.disabled = true;
+        createGroupBtn.disabled = true;
+        addEmptyGroupBtn.disabled = true;
+        conversionStatus.textContent = "AI가 작업자의 자세(뼈대)를 추출하고 있습니다...";
+
+        try {
+            // 그룹 초기화
+            groups = [];
+            capturedFramesData.forEach(f => {
+                f.isGrouped = false;
+                f.groupId = null;
+            });
+
+            // (A) 모든 프레임에서 자세(Keypoints) 추출
+            const framePoses = [];
+            
+            for (let i = 0; i < capturedFramesData.length; i++) {
+                const frame = capturedFramesData[i];
+                conversionStatus.textContent = `자세 분석 중... (${i + 1} / ${capturedFramesData.length})`;
+                
+                const imgElement = await loadImage(frame.src);
+                
+                // MoveNet으로 자세 추정
+                const poses = await detector.estimatePoses(imgElement);
+                
+                // 사람이 감지되지 않았을 경우 예외 처리
+                const pose = poses.length > 0 ? poses[0] : null;
+                
+                framePoses.push({
+                    frameData: frame,
+                    pose: pose
+                });
+            }
+
+            // (B) 허용 오차 가져오기 (픽셀 단위)
+            const thresholdInput = document.getElementById('thresholdInput');
+            let tolerance = parseFloat(thresholdInput.value);
+            if (isNaN(tolerance) || tolerance < 5) tolerance = 30; // 기본값 안전장치
+
+            console.log(`적용된 허용 오차: ${tolerance}px`);
+
+            // (C) 거리 기반 그룹화 실행
+            for (const item of framePoses) {
+                // 자세가 감지되지 않은 프레임은 그룹화에서 제외하거나 별도 처리 (여기선 제외)
+                if (!item.pose) continue;
+
+                let bestMatchGroup = null;
+                let minDistance = 9999;
+
+                // 기존 그룹들과 비교
+                for (const group of groups) {
+                    // 그룹의 대표 자세 가져오기
+                    const repFrameId = group.frames[0].id;
+                    const repPoseData = framePoses.find(fp => fp.frameData.id === repFrameId);
+                    
+                    if (repPoseData && repPoseData.pose) {
+                        const dist = calculatePoseDistance(item.pose, repPoseData.pose);
+                        
+                        // 가장 거리가 짧은(유사한) 그룹 찾기
+                        if (dist < minDistance) {
+                            minDistance = dist;
+                            bestMatchGroup = group;
+                        }
+                    }
+                }
+
+                // 허용 오차 이내라면 해당 그룹에 추가
+                if (bestMatchGroup && minDistance <= tolerance) {
+                    item.frameData.isGrouped = true;
+                    item.frameData.groupId = bestMatchGroup.id;
+                    bestMatchGroup.frames.push(item.frameData);
+                } else {
+                    // 아니면 새 그룹 생성
+                    const newGroupId = groups.length > 0 ? Math.max(...groups.map(g => g.id)) + 1 : 1;
+                    item.frameData.isGrouped = true;
+                    item.frameData.groupId = newGroupId;
+                    
+                    groups.push({
+                        id: newGroupId,
+                        frames: [item.frameData],
+                        representativeSrc: item.frameData.src
+                    });
+                }
+            }
+
+            // (D) 결과 렌더링
+            renderGroups();
+            updateTotalGroupedRatio();
+            updateAddEmptyGroupButtonState();
+            
+            // 갤러리 정리 (그룹화 된 것 제거)
+            gallery.innerHTML = '';
+            // 만약 자세 인식이 안 돼서 그룹화 안 된 애들이 있다면 갤러리에 다시 표시해주는 로직 추가 가능
+            framePoses.forEach(fp => {
+                if (!fp.frameData.isGrouped) {
+                    // 다시 갤러리에 추가하는 로직 (생략 가능, 필요시 구현)
+                }
+            });
+
+            conversionStatus.textContent = "✨ 자세 기반 그룹화 완료!";
+
+        } catch (error) {
+            console.error(error);
+            conversionStatus.textContent = "오류 발생: " + error.message;
+            conversionStatus.classList.add('error');
+        } finally {
+            autoGroupBtn.innerText = originalBtnText;
+            autoGroupBtn.disabled = false;
+            createGroupBtn.disabled = false;
+        }
+    });
+
+    function renderGroups() {
+        const totalCapturedFramesCount = capturedFramesData.length;
+        const videoDuration = video.duration || 0; 
+
+        const nonEmptyGroups = groups.filter(g => g.frames.length > 0);
+        nonEmptyGroups.sort((a, b) => {
+            const ratioA = (a.frames.length / totalCapturedFramesCount) || 0;
+            const ratioB = (b.frames.length / totalCapturedFramesCount) || 0;
+            return ratioB - ratioA;
+        });
+
+        const emptyGroups = groups.filter(g => g.frames.length === 0);
+        groups = [...nonEmptyGroups, ...emptyGroups];
+
+        groupedImagesContainer.innerHTML = '';
+        groups.forEach(group => {
+            const groupDiv = document.createElement('div');
+            groupDiv.className = 'image-group';
+            groupDiv.dataset.groupId = group.id;
+
+            groupDiv.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                groupDiv.classList.add('drag-over');
+            });
+            groupDiv.addEventListener('dragleave', () => {
+                groupDiv.classList.remove('drag-over');
+            });
+            groupDiv.addEventListener('drop', (e) => {
+                e.preventDefault();
+                groupDiv.classList.remove('drag-over');
+
+                if (draggedFrameId) {
+                    let draggedFrame = null;
+                    let oldGroup = null;
+
+                    for (let i = 0; i < groups.length; i++) {
+                        const frameIndex = groups[i].frames.findIndex(f => f.id === draggedFrameId);
+                        if (frameIndex !== -1) {
+                            draggedFrame = groups[i].frames[frameIndex];
+                            oldGroup = groups[i];
+                            oldGroup.frames.splice(frameIndex, 1); 
+                            
+                            if (oldGroup.frames.length > 0 && oldGroup.representativeSrc === draggedFrame.src) {
+                                oldGroup.representativeSrc = oldGroup.frames[0]?.src || null;
+                            } else if (oldGroup.frames.length === 0) {
+                                oldGroup.representativeSrc = null; 
+                            }
+                            break;
+                        }
+                    }
+
+                    if (draggedFrame) {
+                        draggedFrame.groupId = group.id;
+                        group.frames.push(draggedFrame);
+                        group.frames.sort((a, b) => a.timestamp - b.timestamp);
+                        group.representativeSrc = group.frames[0]?.src || null; 
+                    }
+                    
+                    renderGroups(); 
+                    updateTotalGroupedRatio(); 
+                    draggedFrameId = null; 
+                }
+            });
+
+            const groupLeftSection = document.createElement('div');
+            groupLeftSection.className = 'group-left-section';
+
+            const representativeImageDisplay = document.createElement('div');
+            representativeImageDisplay.className = 'representative-image-display';
+            if (group.representativeSrc) {
+                representativeImageDisplay.onclick = () => showModal(group.representativeSrc);
+                const repImg = document.createElement('img');
+                repImg.src = group.representativeSrc;
+                repImg.alt = `대표 이미지`;
+                representativeImageDisplay.appendChild(repImg);
+            } else {
+                const placeholder = document.createElement('span');
+                placeholder.textContent = '빈 그룹';
+                placeholder.style.color = '#999';
+                placeholder.style.fontSize = '1.2rem';
+                representativeImageDisplay.appendChild(placeholder);
+            }
+            groupLeftSection.appendChild(representativeImageDisplay);
+
+            const groupInfoDiv = document.createElement('div');
+            groupInfoDiv.className = 'group-info';
+            const groupCountSpan = document.createElement('span');
+            groupCountSpan.textContent = `이미지 수: ${group.frames.length}개`;
+            groupInfoDiv.appendChild(groupCountSpan);
+
+            const groupPercentage = (group.frames.length / totalCapturedFramesCount) * 100 || 0;
+            const groupRatioSpan = document.createElement('span');
+            groupRatioSpan.textContent = `누적 비율: ${groupPercentage.toFixed(2)}%`;
+            groupInfoDiv.appendChild(groupRatioSpan);
+
+            const groupExposureDuration = (groupPercentage / 100) * videoDuration;
+            const groupExposureSpan = document.createElement('span');
+            groupExposureSpan.textContent = `총 노출시간: ${formatDuration(groupExposureDuration)}`;
+            groupInfoDiv.appendChild(groupExposureSpan);
+
+
+            groupLeftSection.appendChild(groupInfoDiv);
+            groupDiv.appendChild(groupLeftSection);
+
+
+            const groupContent = document.createElement('div');
+            groupContent.className = 'group-content';
+            
+            group.frames.sort((a, b) => a.timestamp - b.timestamp);
+
+            group.frames.forEach(frame => {
+                const thumbWrapper = document.createElement('div');
+                thumbWrapper.className = 'group-thumb-wrapper';
+                thumbWrapper.draggable = true;
+                thumbWrapper.dataset.frameId = frame.id;
+
+                thumbWrapper.addEventListener('dragstart', (e) => {
+                    draggedFrameId = frame.id;
+                    e.dataTransfer.setData('text/plain', frame.id);
+                    thumbWrapper.classList.add('dragging');
+                    if (e.dataTransfer.setDragImage) {
+                        const img = new Image();
+                        img.src = 'data:image/gif;base64,R0lGODlhAQABAAD/ACwAAAAAAQABAAACADs='; 
+                        e.dataTransfer.setDragImage(img, 0, 0); 
+                    }
+                });
+                thumbWrapper.addEventListener('dragend', () => {
+                    thumbWrapper.classList.remove('dragging');
+                    draggedFrameId = null;
+                });
+
+                const img = new Image();
+                img.src = frame.src;
+                img.className = 'group-thumb';
+                img.onclick = () => showModal(frame.src);
+                thumbWrapper.appendChild(img);
+                groupContent.appendChild(thumbWrapper);
+            });
+            groupDiv.appendChild(groupContent);
+
+            groupedImagesContainer.appendChild(groupDiv);
+        });
+    }
+
+    function updateTotalGroupedRatio() {
+        const totalCapturedFramesCount = capturedFramesData.length;
+        const videoDuration = video.duration || 0; 
+
+        let totalGroupedFramesCount = 0;
+        groups.forEach(group => {
+            totalGroupedFramesCount += group.frames.length;
+        });
+
+        if (totalCapturedFramesCount > 0) {
+            const percentage = (totalGroupedFramesCount / totalCapturedFramesCount) * 100;
+            totalGroupedRatioDisplay.textContent = `그룹화된 이미지 총 비율: ${percentage.toFixed(2)}% (${totalGroupedFramesCount}개)`;
+        } else {
+            totalGroupedRatioDisplay.textContent = '그룹화된 이미지 총 비율: 0%';
+        }
+    }
+
+    function updateAddEmptyGroupButtonState() {
+        const remainingFramesInGallery = capturedFramesData.filter(frame => !frame.isGrouped).length;
+        addEmptyGroupBtn.disabled = remainingFramesInGallery > 0;
+    }
+
+    function formatDuration(sec) {
+      if (isNaN(sec) || sec < 0) return '0초'; 
+      const h = Math.floor(sec / 3600);
+      const m = Math.floor((sec % 3600) / 60);
+      const s = Math.floor(sec % 60);
+
+      let result = [];
+      if (h > 0) result.push(`${h}시간`);
+      if (m > 0 || h > 0) result.push(`${m}분`); 
+      result.push(`${s}초`); 
+
+      return result.join(' ');
+    }
+
+    function showModal(src) {
+      document.getElementById('modalImg').src = src;
+      document.getElementById('modal').style.display = 'flex';
+    }
+  </script>
+</body>
+</html>

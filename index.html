@@ -628,7 +628,7 @@
             <option value="">목록 불러오는 중...</option>
           </select>
           <label>소속 팀</label>
-          <select id="userTeamSelect" onchange="onTeamSelectionChange()">
+          <select id="userTeamSelect">
             <option value="">과정을 먼저 선택하세요</option>
           </select>
         </div>
@@ -643,7 +643,7 @@
           <div>
             <h3 id="surveyTitle" style="color:var(--p);"></h3>
             <span id="surveyBadge" class="badge bg-blue" style="margin-top:4px;">설문 진행 중</span>
-          </div>          
+          </div>
         </div>
         <div class="scenario-box" id="scenarioText"></div>
 
@@ -660,8 +660,9 @@
           <div id="questionList"></div>
           <div style="display:flex;gap:10px;margin-top:16px;">
             <button class="btn btn-red btn-full" onclick="submitSurvey()">설문 제출</button>
-            <button class="btn btn-outline" style="white-space: nowrap; min-width: 90px;" onclick="showScreen('joinScreen')">취소</button>
-          </div>          
+            <button class="btn btn-outline" style="white-space: nowrap; min-width: 90px;"
+              onclick="showScreen('joinScreen')">취소</button>
+          </div>
         </div>
 
         <div id="phase2Area" style="display:none;"></div>
@@ -1111,11 +1112,29 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     window.onCourseChange = async () => {
       const sess = document.getElementById('userCourseSelect').value;
       const tSel = document.getElementById('userTeamSelect');
+      const joinBtn = document.querySelector('#joinScreen .btn'); // 입장 버튼 선택
+
       tSel.innerHTML = '<option value="">불러오는 중...</option>';
-      if (!sess) return;
+      if (!sess) {
+        tSel.innerHTML = '<option value="">과정을 먼저 선택하세요</option>';
+        return;
+      }
+
       let tCount = 6;
       try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
       tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
+
+      // [추가] 과정 마감 여부를 확인하여 버튼 상태 즉시 변경
+      const isClosed = localStorage.getItem(`closed_${sess}`) === 'true';
+      if (isClosed && joinBtn) {
+        joinBtn.innerText = '개선 및 예방대책 입력';
+        joinBtn.classList.remove('btn-blue');
+        joinBtn.classList.add('btn-green');
+      } else if (joinBtn) {
+        joinBtn.innerText = '휴먼에러 헌팅 시작';
+        joinBtn.classList.remove('btn-green');
+        joinBtn.classList.add('btn-blue');
+      }
     };
 
     window.enterSim = async () => {
@@ -1126,7 +1145,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (!sessId || !teamVal) return alert('과정과 팀을 선택해주세요.');
 
       // 이미 제출한 경우 안내
-      if (sessionStorage.getItem(`submitted_${sessId}_${teamVal}`)) {
+      if (sessionStorage.getItem(`submitted_${sessId}`)) {
         return alert('이미 설문을 제출하셨습니다.\n강사의 안내를 기다려주세요.');
       }
 
@@ -1157,27 +1176,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } catch (e) { return false; }
     }
 
-    window.onTeamSelectionChange = async () => {
-  const sessId = document.getElementById('userCourseSelect').value;
-  const teamVal = document.getElementById('userTeamSelect').value;
-  const btn = document.querySelector('#joinScreen .btn');
-
-  if (!sessId || !teamVal) return;
-
-  const isClosed = await checkIfClosed(sessId, teamVal);
-  if (isClosed) {
-    btn.innerText = '개선 및 예방대책 입력';
-    btn.classList.remove('btn-blue');
-    btn.classList.add('btn-green');
-  } else {
-    btn.innerText = '휴먼에러 헌팅 시작';
-    btn.classList.remove('btn-green');
-    btn.classList.add('btn-blue');
-  }
-};
-    
     function buildSurveyScreen(scenarioKey, industryKey, teamText) {
-      document.getElementById('surveyTitle').innerText = `${teamText} — 사고 원인 진단`;      
+      document.getElementById('surveyTitle').innerText = `${teamText} — 사고 원인 진단`;
       document.getElementById('surveyBadge').className = 'badge bg-blue';
       document.getElementById('surveyBadge').innerText = '설문 진행 중';
       document.getElementById('phase1Area').style.display = 'block';
@@ -1240,7 +1240,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           scores, timestamp: new Date(), industry: industryKey
         });
         // 재제출 방지 플래그
-        sessionStorage.setItem(`submitted_${sessId}_${teamId}`, 'true');
+        sessionStorage.setItem(`submitted_${sessId}`, 'true');
         // 개인 피드백 렌더링
         renderPersonalFeedback(scores);
         showScreen('doneScreen');
@@ -1248,22 +1248,22 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     };
 
     function renderPersonalFeedback(scores) {
-  const feedbackEl = document.getElementById('personalFeedback');
-  if (!feedbackEl) return;
+      const feedbackEl = document.getElementById('personalFeedback');
+      if (!feedbackEl) return;
 
-  // 가중점수 기준 내림차순 정렬
-  const sorted = [...scores].sort((a, b) => b.weighted - a.weighted);
-  const total = sorted.reduce((s, x) => s + x.weighted, 0);
+      // 가중점수 기준 내림차순 정렬
+      const sorted = [...scores].sort((a, b) => b.weighted - a.weighted);
+      const total = sorted.reduce((s, x) => s + x.weighted, 0);
 
-  // 파레토 80% 추출
-  let cum = 0, paretoIdx = -1;
-  for (let i = 0; i < sorted.length; i++) {
-    cum += sorted[i].weighted;
-    if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
-  }
-  const myTop = sorted.slice(0, paretoIdx + 1);
+      // 파레토 80% 추출
+      let cum = 0, paretoIdx = -1;
+      for (let i = 0; i < sorted.length; i++) {
+        cum += sorted[i].weighted;
+        if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
+      }
+      const myTop = sorted.slice(0, paretoIdx + 1);
 
-  feedbackEl.innerHTML = `
+      feedbackEl.innerHTML = `
     <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;">
       <div style="font-weight:600;color:#7f1d1d;margin-bottom:10px;font-size:.95rem;">
         나의 진단 결과 — 핵심 위험 요인
@@ -1282,14 +1282,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
               (${total > 0 ? Math.round(x.weighted / total * 100) : 0}%)
             </span>
           </span>`
-        ).join('')}
+      ).join('')}
       </div>
       <div style="font-size:.8rem;color:#991b1b;margin-top:6px;">
         ※ 팀원과 토론 후 대책을 수립하세요.
       </div>
     </div>
   `;
-}
+    }
 
     async function buildPhase2Screen(sessId, teamId, scenarioKey, industryKey, teamText) {
       document.getElementById('surveyTitle').innerText = `${teamText} — 개선 및 예방대책 수립`;
@@ -1365,7 +1365,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     <div style="display:flex;gap:8px;margin-top:10px;">
       <button class="btn btn-green btn-full" onclick="submitCountermeasure()">개선 및 예방대책 제출</button>
       <button class="btn btn-outline" style="white-space: nowrap; min-width: 90px;" onclick="showScreen('joinScreen')">취소</button>
-    </div>    
+    </div>      
   </div>
 `;
 

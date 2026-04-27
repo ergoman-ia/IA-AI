@@ -1473,9 +1473,28 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
         }
         const topItems = indexed.slice(0, paretoIdx + 1);
-        // 💡 팀원간 일치도(합의도) 계산: 가장 높은 점수의 비중을 활용
-        const consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
         
+        // 💡 [수정 반영] 팀원간 일치도(합의도) 계산
+        const consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
+
+        // ⚠️ 이 부분이 삭제되었어서 에러가 발생했었습니다! 복구 완료.
+        let barHtml = '';
+        let cumPct = 0;
+        indexed.forEach((item, idx) => {
+          const pct = total > 0 ? Math.round(item.val / total * 100) : 0;
+          cumPct += pct;
+          const inPareto = idx <= paretoIdx;
+          const isAnswer = answerKeys.includes(item.name);
+          barHtml += `<div class="pareto-bar-wrap">
+        <div class="pareto-bar-label">
+          <span style="font-weight:${inPareto ? 600 : 400};color:${inPareto ? '#dc2626' : '#64748b'};">${item.name}${isAnswer ? ' ★' : ''}</span>
+          <span style="font-size:.78rem;color:#94a3b8;">${pct}% (누적 ${cumPct > 100 ? 100 : cumPct}%)</span>
+        </div>
+        <div class="pareto-bar-bg"><div class="pareto-bar-fill ${inPareto ? 'bar-in80' : 'bar-out80'}" style="width:${pct}%;"></div></div>
+      </div>`;
+        });
+
+        // 💡 [수정 반영] UI 렌더링
         html += `<div class="card" style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <strong style="font-size:1rem;color:var(--p);">${t.name}</strong>

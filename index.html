@@ -1337,14 +1337,23 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         return; 
       }
 
-      // 💡 마감 여부 선제적 체크
       const isClosed = await checkIfClosed(sess, 'team_1');
+      
       if (isClosed) {
-        document.getElementById('dashTeamCards').innerHTML = '<div class="error-banner" style="background:#f1f5f9; border-color:#cbd5e1; color:#475569; margin: 20px 0;">✅ 이 과정은 이미 전체 설문 마감 처리가 완료되었습니다.</div>';
-        if (allCtrl) allCtrl.style.display = 'none';
+        // 💡 마감된 상태라면 마감 컨트롤 영역은 아예 숨겨버립니다.
+        if (allCtrl) allCtrl.style.display = 'none'; 
+        
+        // 💡 마감 안내 배너 안에 '마감 취소(되살리기)' 버튼을 직관적으로 배치합니다.
+        document.getElementById('dashTeamCards').innerHTML = `
+          <div class="error-banner" style="background:#f1f5f9; border-color:#cbd5e1; color:#475569; margin: 20px 0; padding: 24px;">
+            <div style="font-size: 1.1rem; margin-bottom: 14px; font-weight: 600;">✅ 이 과정은 전체 설문 마감 처리가 완료되었습니다.</div>
+            <button class="btn btn-outline" onclick="cancelAllSurveys()">전체 마감 취소 (다시 살리기)</button>
+          </div>
+        `;
         return;
       }
 
+      // 마감되지 않은 상태라면 마감 버튼을 보여줍니다.
       if (allCtrl) allCtrl.style.display = 'block';
 
       let tCount = 6;

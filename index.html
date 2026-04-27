@@ -541,7 +541,7 @@
   <div class="container">
     <div id="errorBanner" class="error-banner" style="display:none;">⚠️ 서버 연결 실패. 네트워크를 확인하거나 관리자에게 문의하세요.</div>
     <div class="header-top">
-      <h1 id="appTitle">휴먼에러 함정제거 실습</h1>
+      <h1 id="appTitle">휴먼에러 헌팅_함정제거 실습</h1>
       <span class="admin-link" onclick="goAdmin()">⚙️ 관리자 모드</span>
     </div>
 
@@ -1278,10 +1278,31 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           });
         }
 
-        // 정답지 표출 영역
+        // 💡 팀별 정확도 계산 로직 추가
+        const submissionSnap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'submissions'));
+        let accuracyHtml = "";
+        if (!submissionSnap.empty) {
+            const sums = new Array(12).fill(0);
+            submissionSnap.forEach(d => {
+                const s = d.data().scores;
+                if (s) s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
+            });
+            const indexed = QUESTIONS[cfg.industry || 'construction'].map((q, i) => ({ name: q.factor, val: sums[i] })).sort((a,b)=>b.val-a.val);
+            const total = indexed.reduce((s,x)=>s+x.val, 0);
+            let cum = 0, pIdx = -1;
+            for(let i=0; i<indexed.length; i++) { cum += indexed[i].val; if(cum/total >= 0.8 && pIdx === -1) pIdx = i; }
+            const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
+            const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
+            const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
+            accuracyHtml = `<span class="badge ${accuracy >= 70 ? 'bg-green' : 'bg-red'}" style="margin-left:10px;">팀원들의 정확도: ${accuracy}%</span>`;
+        }
+
         html += `</div>
           <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;font-size:.9rem;">
-            <strong style="color:#ca8a04;">💡 전문가 판단 정답지 (사고 핵심 요인)</strong>
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <strong style="color:#ca8a04;">💡 전문가 판단 정답지 (사고 핵심 요인)</strong>
+              ${accuracyHtml}
+            </div>
             <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
               ${answerKeys.map(k => `<span class="match-badge match-hit">${k}</span>`).join('')}
             </div>
@@ -1308,12 +1329,24 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       Object.values(dashUnsubs).forEach(f => f()); dashUnsubs = {};
       if (detailUnsub) { detailUnsub(); detailUnsub = null; }
       document.getElementById('dashDetail').style.display = 'none';
-
-      // 과정이 선택되면 전체 마감 버튼 컨테이너 표시
       const allCtrl = document.getElementById('allSurveyControl');
-      if (allCtrl) allCtrl.style.display = sess ? 'block' : 'none';
 
-      if (!sess) { document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>'; return; }
+      if (!sess) { 
+        document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>'; 
+        if (allCtrl) allCtrl.style.display = 'none';
+        return; 
+      }
+
+      // 💡 마감 여부 선제적 체크
+      const isClosed = await checkIfClosed(sess, 'team_1');
+      if (isClosed) {
+        document.getElementById('dashTeamCards').innerHTML = '<div class="error-banner" style="background:#f1f5f9; border-color:#cbd5e1; color:#475569; margin: 20px 0;">✅ 이 과정은 이미 전체 설문 마감 처리가 완료되었습니다.</div>';
+        if (allCtrl) allCtrl.style.display = 'none';
+        return;
+      }
+
+      if (allCtrl) allCtrl.style.display = 'block';
+
       let tCount = 6;
       try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
       document.getElementById('dashTeamCards').innerHTML = `<div class="team-grid">${Array.from({ length: tCount }, (_, i) => `
@@ -1440,31 +1473,15 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
         }
         const topItems = indexed.slice(0, paretoIdx + 1);
-        const matchCnt = topItems.filter(x => answerKeys.includes(x.name)).length;
-        const matchRate = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-
-        let barHtml = '';
-        let cumPct = 0;
-        indexed.forEach((item, idx) => {
-          const pct = total > 0 ? Math.round(item.val / total * 100) : 0;
-          cumPct += pct;
-          const inPareto = idx <= paretoIdx;
-          const isAnswer = answerKeys.includes(item.name);
-          barHtml += `<div class="pareto-bar-wrap">
-        <div class="pareto-bar-label">
-          <span style="font-weight:${inPareto ? 600 : 400};color:${inPareto ? '#dc2626' : '#64748b'};">${item.name}${isAnswer ? ' ★' : ''}</span>
-          <span style="font-size:.78rem;color:#94a3b8;">${pct}% (누적 ${cumPct > 100 ? 100 : cumPct}%)</span>
-        </div>
-        <div class="pareto-bar-bg"><div class="pareto-bar-fill ${inPareto ? 'bar-in80' : 'bar-out80'}" style="width:${pct}%;"></div></div>
-      </div>`;
-        });
-
+        // 💡 팀원간 일치도(합의도) 계산: 가장 높은 점수의 비중을 활용
+        const consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
+        
         html += `<div class="card" style="margin-bottom:14px;">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <strong style="font-size:1rem;color:var(--p);">${t.name}</strong>
         <div style="display:flex;gap:6px;flex-wrap:wrap;">
           <span class="badge bg-gray">${t.cnt}명 응답</span>
-          <span class="badge ${matchRate >= 75 ? 'bg-green' : matchRate >= 50 ? 'bg-amber' : 'bg-red'}">${matchRate}% 일치</span>
+          <span class="badge ${consensusRate >= 40 ? 'bg-green' : 'bg-amber'}">팀원간 일치도 : ${consensusRate}%</span>
         </div>
       </div>
       <div style="margin-bottom:8px;font-size:.82rem;color:#475569;">★ = 강사 정답 요인 &nbsp;|&nbsp; <span style="color:var(--d);">붉은 바</span> = 파레토 80% 구간</div>

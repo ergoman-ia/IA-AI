@@ -1351,6 +1351,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>';
       document.getElementById('dashDetail').style.display = 'none';
       document.getElementById('dashCourseSelect').value = '';
+      
+      // 💡 [추가] 현황판 진입 시 마감 버튼 영역을 미리 숨깁니다.
+      const allCtrl = document.getElementById('allSurveyControl');
+      if (allCtrl) allCtrl.style.display = 'none';
+      
       showScreen('dashScreen');
     };
 
@@ -1453,6 +1458,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         // 3. DB에 일괄 전송합니다.
         await Promise.all(batch);
         alert('전체 팀 설문이 성공적으로 마감되었습니다.');
+        
+        // 💡 [추가] 마감 완료 후 화면을 즉시 갱신하여 버튼을 숨기고 배너를 보여줍니다.
+        onDashCourseChange();
 
       } catch (error) {
         console.error("마감 처리 중 에러 발생:", error);

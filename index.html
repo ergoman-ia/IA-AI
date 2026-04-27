@@ -1112,31 +1112,32 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     window.onCourseChange = async () => {
       const sess = document.getElementById('userCourseSelect').value;
       const tSel = document.getElementById('userTeamSelect');
-      const joinBtn = document.querySelector('#joinScreen .btn'); // 입장 버튼 선택
+      const joinBtn = document.querySelector('#joinScreen .btn'); // 입장 버튼 찾기
 
       tSel.innerHTML = '<option value="">불러오는 중...</option>';
-      if (!sess) {
-        tSel.innerHTML = '<option value="">과정을 먼저 선택하세요</option>';
-        return;
-      }
+      if (!sess) return;
 
       let tCount = 6;
-      try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
+      try { 
+        const cfg = await getDoc(doc(db, 'course_configs', sess)); 
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6; 
+      } catch (e) { }
+      
       tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
 
-      // [추가] 과정 마감 여부를 확인하여 버튼 상태 즉시 변경
+      // [추가된 로직] 과정 마감 여부에 따라 버튼 바탕색과 텍스트 변경
       const isClosed = localStorage.getItem(`closed_${sess}`) === 'true';
       if (isClosed && joinBtn) {
-        joinBtn.innerText = '개선 및 예방대책 입력';
-        joinBtn.classList.remove('btn-blue');
-        joinBtn.classList.add('btn-green');
+        joinBtn.innerText = '개선 및 예방대책 입력'; // 텍스트 변경
+        joinBtn.classList.remove('btn-blue');      // 기존 파란색 제거
+        joinBtn.classList.add('btn-green');         // 녹색(바탕) 추가
       } else if (joinBtn) {
-        joinBtn.innerText = '휴먼에러 헌팅 시작';
+        joinBtn.innerText = '휴먼에러 헌팅 시작';   // 원복
         joinBtn.classList.remove('btn-green');
         joinBtn.classList.add('btn-blue');
       }
     };
-
+    
     window.enterSim = async () => {
       const sessId = document.getElementById('userCourseSelect').value;
       const tSel = document.getElementById('userTeamSelect');

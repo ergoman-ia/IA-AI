@@ -831,7 +831,7 @@ window.goCountermeasures = () => {
           let participantNum = 1;
           snap.forEach(d => {
             html += `<div style="background:#f8fafc;padding:10px 12px;border-radius:6px;margin-bottom:8px;font-size:.9rem;border:1px solid #e2e8f0;">
-              <strong style="color:var(--a);">참여자${participantNum} :</strong> <span style="white-space:pre-wrap;">${d.data().text}</span>
+              <strong style="color:var(--a);">참여자${participantNum} :</strong> <span style="white-space:pre-wrap; word-break:break-all;">${d.data().text}</span>
             </div>`;
             participantNum++;
           });

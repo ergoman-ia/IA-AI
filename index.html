@@ -628,7 +628,7 @@
             <option value="">목록 불러오는 중...</option>
           </select>
           <label>소속 팀</label>
-          <select id="userTeamSelect">
+          <select id="userTeamSelect" onchange="onTeamSelectionChange()">
             <option value="">과정을 먼저 선택하세요</option>
           </select>
         </div>
@@ -1157,6 +1157,25 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } catch (e) { return false; }
     }
 
+    window.onTeamSelectionChange = async () => {
+  const sessId = document.getElementById('userCourseSelect').value;
+  const teamVal = document.getElementById('userTeamSelect').value;
+  const btn = document.querySelector('#joinScreen .btn');
+
+  if (!sessId || !teamVal) return;
+
+  const isClosed = await checkIfClosed(sessId, teamVal);
+  if (isClosed) {
+    btn.innerText = '개선 및 예방대책 입력';
+    btn.classList.remove('btn-blue');
+    btn.classList.add('btn-green');
+  } else {
+    btn.innerText = '휴먼에러 헌팅 시작';
+    btn.classList.remove('btn-green');
+    btn.classList.add('btn-blue');
+  }
+};
+    
     function buildSurveyScreen(scenarioKey, industryKey, teamText) {
       document.getElementById('surveyTitle').innerText = `${teamText} — 사고 원인 진단`;      
       document.getElementById('surveyBadge').className = 'badge bg-blue';

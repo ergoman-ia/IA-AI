@@ -1978,7 +1978,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         await deleteDoc(doc(db, 'course_configs', sess));
       }
       await setDoc(doc(db, 'settings', 'courses'), { list: [], activeList: [] });
-      alert('초기화 완료');
+      
+      localStorage.clear();   // 모든 로컬 저장 데이터 삭제
+      sessionStorage.clear(); // 모든 세션 저장 데이터 삭제
+      
+      alert('서버 데이터와 로컬 설정이 모두 초기화되었습니다. 페이지를 새로고침합니다.');
       location.reload();
     };
   </script>

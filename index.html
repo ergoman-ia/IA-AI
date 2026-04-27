@@ -1334,7 +1334,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
   <!-- 토론 타이머 -->
   <div class="timer-box">
     <div style="font-size:.85rem;color:#64748b;margin-bottom:6px;">팀 토론 권장 시간</div>
-    <div class="timer-display safe" id="timerDisplay">5:00</div>
+    <div class="timer-display safe" id="timerDisplay">05:00</div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
       <button class="btn btn-red btn-sm" id="timerStartBtn" onclick="startTimer()">타이머 시작</button>
       <button class="btn btn-outline btn-sm" onclick="resetTimer()">초기화</button>
@@ -1357,7 +1357,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 `;
 
       // 타이머 초기화
-      initTimer(10 * 60);
+      initTimer(5 * 60);
     }
 
     // ── 토론 타이머 ─────────────────────────────────────
@@ -1401,7 +1401,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     };
 
     window.resetTimer = () => {
-      initTimer(10 * 60);
+      initTimer(5 * 60);
     };
 
     window.submitCountermeasure = async () => {
@@ -1793,6 +1793,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         });
         teamResults.push({ name: `${i}팀`, cnt, sums });
       }
+
+      let html = '';
 
       teamResults.forEach(t => {
         if (!t.sums) {

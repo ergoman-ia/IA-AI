@@ -919,13 +919,6 @@ window.clickTeamCard = (sessId, teamId, teamName) => {
   });
 };
 
-window.closeSurveyForTeam=async()=>{
-  if(!currentDashSess||!currentDashTeam)return;
-  if(!confirm(`${currentDashTeam}의 설문을 마감하시겠습니까? 이후 응답이 차단됩니다.`))return;
-  await setDoc(doc(db,'sessions',currentDashSess,'teams',currentDashTeam,'meta','status'),{closed:true,closedAt:new Date()});
-  alert('마감되었습니다.');
-};
-
 window.closeAllSurveys=async()=>{
   if(!currentDashSess)return;
   if(!confirm('이 과정의 모든 팀 설문을 마감하시겠습니까?'))return;

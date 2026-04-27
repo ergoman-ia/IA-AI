@@ -341,13 +341,21 @@ function showScreen(id){
 }
 window.showScreen=showScreen;
 
-window.onload=async()=>{
-  if(!db)return;
-  onSnapshot(doc(db,'settings','courses'),(snap)=>{
-    courseList=[]; activeCourseList=[];
-    if(snap.exists()){
-      courseList=snap.data().list||[];
-      activeCourseList=snap.data().activeList||[];
+window.onload = async () => {
+  if (!db) return;
+
+  // settings/courses 문서가 없으면 미리 생성해둠
+  const settingsRef = doc(db, 'settings', 'courses');
+  const settingsSnap = await getDoc(settingsRef);
+  if (!settingsSnap.exists()) {
+    await setDoc(settingsRef, { list: [], activeList: [] });
+  }
+
+  onSnapshot(doc(db, 'settings', 'courses'), (snap) => {
+    courseList = []; activeCourseList = [];
+    if (snap.exists()) {
+      courseList = snap.data().list || [];
+      activeCourseList = snap.data().activeList || [];
     }
     refreshSelects();
     renderAdminCourseList();
@@ -391,15 +399,38 @@ window.checkAdmin=()=>{
   }else alert('비밀번호 불일치');
 };
 
-window.addCourse=async()=>{
-  const nm=document.getElementById('newCourseNm').value.trim();
-  const cnt=parseInt(document.getElementById('newTeamCnt').value)||6;
-  const scenario=document.getElementById('newScenario').value;
-  const industry=document.getElementById('newIndustry').value;
-  if(!nm)return alert('과정명을 입력하세요.');
-  await updateDoc(doc(db,'settings','courses'),{list:arrayUnion(nm),activeList:arrayUnion(nm)});
-  await setDoc(doc(db,'course_configs',nm),{teamCount:cnt,scenario,industry});
-  document.getElementById('newCourseNm').value='';
+window.addCourse = async () => {
+  const nm = document.getElementById('newCourseNm').value.trim();
+  const cnt = parseInt(document.getElementById('newTeamCnt').value) || 6;
+  const scenario = document.getElementById('newScenario').value;
+  const industry = document.getElementById('newIndustry').value;
+  if (!nm) return alert('과정명을 입력하세요.');
+
+  // settings/courses 문서가 없으면 생성, 있으면 배열에 추가
+  const settingsRef = doc(db, 'settings', 'courses');
+  const settingsSnap = await getDoc(settingsRef);
+
+  if (!settingsSnap.exists()) {
+    // 문서가 없으면 새로 생성
+    await setDoc(settingsRef, {
+      list: [nm],
+      activeList: [nm]
+    });
+  } else {
+    // 문서가 있으면 배열에 추가
+    await updateDoc(settingsRef, {
+      list: arrayUnion(nm),
+      activeList: arrayUnion(nm)
+    });
+  }
+
+  await setDoc(doc(db, 'course_configs', nm), {
+    teamCount: cnt,
+    scenario,
+    industry
+  });
+
+  document.getElementById('newCourseNm').value = '';
   alert(`'${nm}' 과정이 생성되었습니다.`);
 };
 

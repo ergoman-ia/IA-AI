@@ -863,13 +863,18 @@ window.goDashboard=()=>{
   showScreen('dashScreen');
 };
 
-window.onDashCourseChange=async()=>{
-  const sess=document.getElementById('dashCourseSelect').value;
-  currentDashSess=sess;
-  Object.values(dashUnsubs).forEach(f=>f()); dashUnsubs={};
-  if(detailUnsub){detailUnsub();detailUnsub=null;}
-  document.getElementById('dashDetail').style.display='none';
-  if(!sess){document.getElementById('dashTeamCards').innerHTML='<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>';return;}
+window.onDashCourseChange = async () => {
+      const sess = document.getElementById('dashCourseSelect').value;
+      currentDashSess = sess;
+      Object.values(dashUnsubs).forEach(f => f()); dashUnsubs = {};
+      if (detailUnsub) { detailUnsub(); detailUnsub = null; }
+      document.getElementById('dashDetail').style.display = 'none';
+      
+      // 과정이 선택되면 전체 마감 버튼 컨테이너 표시
+      const allCtrl = document.getElementById('allSurveyControl');
+      if (allCtrl) allCtrl.style.display = sess ? 'block' : 'none';
+
+      if (!sess) { document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>'; return; }
   let tCount=6;
   try{const cfg=await getDoc(doc(db,'course_configs',sess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
   document.getElementById('dashTeamCards').innerHTML=`<div class="team-grid">${Array.from({length:tCount},(_,i)=>`
@@ -899,16 +904,16 @@ function updateTeamCard(teamId,num,snap){
   card.innerHTML=`<div class="card-icon">${icon}</div><div class="card-name">${num}팀</div><div class="card-info">${cnt}명 응답</div>`;
 }
 
-window.clickTeamCard=(sessId,teamId,teamName)=>{
-  currentDashTeam=teamId;
-  document.querySelectorAll('.team-card').forEach(c=>c.classList.remove('selected'));
-  const card=document.getElementById(`card_${teamId}`);
-  if(card)card.classList.add('selected');
-  document.getElementById('dashDetailTitle').innerText=`${teamName} 응답 현황`;
-  document.getElementById('dashDetail').style.display='block';
-  document.getElementById('closeSurveyBtn').style.display='inline-block';
-  document.getElementById('closeAllBtn').style.display='inline-block';
-  if(detailUnsub)detailUnsub();
+window.clickTeamCard = (sessId, teamId, teamName) => {
+      currentDashTeam = teamId;
+      document.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
+      const card = document.getElementById(`card_${teamId}`);
+      if (card) card.classList.add('selected');
+      document.getElementById('dashDetailTitle').innerText = `${teamName} 응답 현황`;
+      document.getElementById('dashDetail').style.display = 'block';
+      
+      // 개별 버튼 제어 코드(closeSurveyBtn 등)는 삭제했습니다.
+      if (detailUnsub) detailUnsub();
   detailUnsub=onSnapshot(collection(db,'sessions',sessId,'teams',teamId,'submissions'),snap=>{
     document.getElementById('dashContent').innerHTML=`<p style="padding:12px 14px;color:#475569;font-size:.9rem;">${snap.docs.length}명 응답 완료. 파레토 분석은 결과 화면에서 확인하세요.</p>`;
   });

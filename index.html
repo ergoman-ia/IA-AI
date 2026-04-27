@@ -149,6 +149,7 @@ th{background:#f8fafc;font-weight:600;color:var(--p);border-bottom:2px solid #e2
           <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
             <button class="btn btn-purple" style="width:85%;" onclick="goDashboard()">팀별 응답 현황판</button>
             <button class="btn btn-green" style="width:85%;" onclick="goAllResult()">전체 파레토 결과 분석</button>
+            <button class="btn btn-blue" style="width:85%;" onclick="goCountermeasures()">전체 개선 및 예방대책</button>
             <button class="btn btn-gray" style="width:85%;" onclick="loadAdminData()">전체 데이터 조회/삭제</button>
           </div>
         </div>
@@ -197,19 +198,25 @@ th{background:#f8fafc;font-weight:600;color:var(--p);border-bottom:2px solid #e2
         <div id="progressInfo" class="badge bg-gray"></div>
       </div>
       <div class="scenario-box" id="scenarioText"></div>
-      <div style="background:#fff7ed;padding:12px 14px;border-radius:8px;border-left:3px solid var(--w);font-size:.87rem;color:#78350f;margin-bottom:14px;line-height:1.6;">
-        <strong>[안내]</strong> 아래 12가지 인적 요인이 이 사고에 얼마나 기여했는지 평가해 주세요.<br>
-        1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--d);font-weight:600;">수정 불가 — 꼼꼼히 확인 후 제출하세요.</span>
-      </div>
-      <div id="progressBar" class="progress-strip">
-        <span>응답 완료: <strong id="answeredCnt">0</strong> / 12</span>
-        <span id="progressPct">0%</span>
-      </div>
-      <div id="questionList"></div>
-      <div style="display:flex;gap:10px;margin-top:16px;">
-        <button class="btn btn-red btn-full" onclick="submitSurvey()">설문 제출</button>
-        <button class="btn btn-outline" onclick="showScreen('joinScreen')">취소</button>
-      </div>
+        
+        <div id="phase1Area">
+          <div
+            style="background:#fff7ed;padding:12px 14px;border-radius:8px;border-left:3px solid var(--w);font-size:.87rem;color:#78350f;margin-bottom:14px;line-height:1.6;">
+            <strong>[안내]</strong> 아래 12가지 인적 요인이 이 사고에 얼마나 기여했는지 평가해 주세요.<br>
+            1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--d);font-weight:600;">수정 불가 — 꼼꼼히 확인 후 제출하세요.</span>
+          </div>
+          <div id="progressBar" class="progress-strip">
+            <span>응답 완료: <strong id="answeredCnt">0</strong> / 12</span>
+            <span id="progressPct">0%</span>
+          </div>
+          <div id="questionList"></div>
+          <div style="display:flex;gap:10px;margin-top:16px;">
+            <button class="btn btn-red btn-full" onclick="submitSurvey()">설문 제출</button>
+            <button class="btn btn-outline" onclick="showScreen('joinScreen')">취소</button>
+          </div>
+        </div>
+
+        <div id="phase2Area" style="display:none;"></div>
     </div>
   </div>
 
@@ -261,6 +268,22 @@ th{background:#f8fafc;font-weight:600;color:var(--p);border-bottom:2px solid #e2
     </div>
   </div>
 </div>
+
+<div id="countermeasureScreen" class="screen">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+          <h3 style="color:var(--p);">전체 개선 및 예방대책</h3>
+          <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+        </div>
+        <div style="background:#eff6ff;padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid #bfdbfe;">
+          <label style="font-size:.85rem;margin-bottom:4px;">분석할 교과과정</label>
+          <select id="cmCourseSelect" onchange="loadCountermeasureData()" style="margin:0;color:var(--a);font-weight:600;"></select>
+        </div>
+        <div id="cmContent">
+          <p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택하면 대책 결과가 표시됩니다.</p>
+        </div>
+      </div>
+    </div>  
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
@@ -506,7 +529,7 @@ function refreshSelects(){
     const opts=activeCourseList.slice().reverse().map(c=>`<option value="${c}">${c}</option>`).join('');
     uEl.innerHTML=`<option value="">과정을 선택하세요</option>${opts}`;
   }
-  ['dashCourseSelect','resultCourseSelect'].forEach(id=>{
+  ['dashCourseSelect', 'resultCourseSelect', 'cmCourseSelect'].forEach(id => {
     const el=document.getElementById(id);
     if(!el)return;
     const opts=courseList.slice().reverse().map(c=>`<option value="${c}">${c}</option>`).join('');
@@ -610,17 +633,21 @@ window.enterSim=async()=>{
   let cfg={teamCount:6,scenario:'con1',industry:'construction'};
   try{const c=await getDoc(doc(db,'course_configs',sessId));if(c.exists())cfg=c.data();}catch(e){}
 
-  const closed=await checkIfClosed(sessId,teamVal);
-  if(closed)return alert('이 팀의 설문은 마감되었습니다. 강사에게 문의하세요.');
+  const closed = await checkIfClosed(sessId, teamVal);
 
-  sessionStorage.setItem('sim_sess',sessId);
-  sessionStorage.setItem('sim_team',teamVal);
-  sessionStorage.setItem('sim_teamText',teamText);
-  sessionStorage.setItem('sim_scenario',cfg.scenario||'con1');
-  sessionStorage.setItem('sim_industry',cfg.industry||'construction');
+      sessionStorage.setItem('sim_sess', sessId);
+      sessionStorage.setItem('sim_team', teamVal);
+      sessionStorage.setItem('sim_teamText', teamText);
+      sessionStorage.setItem('sim_scenario', cfg.scenario || 'con1');
+      sessionStorage.setItem('sim_industry', cfg.industry || 'construction');
 
-  buildSurveyScreen(cfg.scenario||'con1',cfg.industry||'construction',teamText);
-  showScreen('surveyScreen');
+      if (closed) {
+        await buildPhase2Screen(sessId, teamVal, cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        showScreen('surveyScreen');
+      } else {
+        buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        showScreen('surveyScreen');
+      }
 };
 
 async function checkIfClosed(sessId,teamId){
@@ -630,8 +657,12 @@ async function checkIfClosed(sessId,teamId){
   }catch(e){return false;}
 }
 
-function buildSurveyScreen(scenarioKey,industryKey,teamText){
-  document.getElementById('surveyTitle').innerText=`${teamText} — 사고 원인 진단`;
+function buildSurveyScreen(scenarioKey, industryKey, teamText) {
+      document.getElementById('surveyTitle').innerText = `${teamText} — 사고 원인 진단`;
+      document.getElementById('surveyBadge').className = 'badge bg-blue';
+      document.getElementById('surveyBadge').innerText = '설문 진행 중';
+      document.getElementById('phase1Area').style.display = 'block';
+      document.getElementById('phase2Area').style.display = 'none';
   const sc=SCENARIOS[scenarioKey];
   document.getElementById('scenarioText').innerText=sc?sc.text:'시나리오 정보 없음';
   const qs=QUESTIONS[industryKey]||QUESTIONS.construction;
@@ -684,6 +715,135 @@ window.submitSurvey=async()=>{
     showScreen('doneScreen');
   }catch(e){alert('전송 실패: '+e.message);}
 };
+
+async function buildPhase2Screen(sessId, teamId, scenarioKey, industryKey, teamText) {
+      document.getElementById('surveyTitle').innerText = `${teamText} — 개선 및 예방대책 수립`;
+      
+      const badge = document.getElementById('surveyBadge');
+      badge.className = 'badge bg-red';
+      badge.innerText = '설문 조사 완료';
+
+      const sc = SCENARIOS[scenarioKey];
+      document.getElementById('scenarioText').innerText = sc ? sc.text : '시나리오 정보 없음';
+
+      document.getElementById('phase1Area').style.display = 'none';
+      const p2 = document.getElementById('phase2Area');
+      p2.style.display = 'block';
+
+      p2.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">파레토 결과 분석 중...</p>';
+      
+      const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
+      const factorNames = qs.map(q => q.factor);
+      const weights = qs.map(q => q.weight);
+
+      // 팀 데이터 가져와서 파레토 80% 요인 추출
+      const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
+      const sums = new Array(12).fill(0);
+      snap.forEach(d => {
+        const s = d.data().scores;
+        if (s && Array.isArray(s)) { s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || item.score || 0); }); }
+      });
+
+      const indexed = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }));
+      indexed.sort((a, b) => b.val - a.val);
+      const total = indexed.reduce((s, x) => s + x.val, 0);
+      
+      let cum = 0, paretoIdx = -1;
+      for (let i = 0; i < indexed.length; i++) {
+        cum += indexed[i].val;
+        if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
+      }
+      
+      const topItems = indexed.slice(0, paretoIdx + 1);
+
+      let paretoHtml = `<div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;margin-bottom:10px;height:100%;">
+        <strong style="color:#78350f;font-size:.9rem;">우리 팀 핵심 위험 요인 (Top 80%)</strong>
+        <ul style="margin-top:10px;padding-left:20px;font-size:.9rem;color:#1e293b;line-height:1.8;">
+          ${topItems.map(x => `<li><strong>${x.name}</strong> (${total > 0 ? Math.round(x.val/total*100) : 0}%)</li>`).join('')}
+        </ul>
+      </div>`;
+
+      p2.innerHTML = `
+        <div style="background:#f0fdf4;padding:12px 14px;border-radius:8px;border-left:3px solid var(--s);font-size:.87rem;color:#166534;margin-bottom:14px;line-height:1.6;">
+          <strong>[안내]</strong> 설문이 마감되었습니다. 아래 우리 팀이 진단한 파레토 핵심 요인을 바탕으로, 현장에 적용할 <strong>가장 효과적인 개선 및 예방대책</strong>을 자유롭게 작성해 주세요.
+        </div>
+        <div class="grid2" style="align-items:stretch;">
+          <div>${paretoHtml}</div>
+          <div style="display:flex;flex-direction:column;justify-content:space-between;">
+            <textarea id="cmInput" rows="5" style="width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:8px;font-size:.9rem;resize:vertical;flex-grow:1;" placeholder="이곳에 예방대책을 입력하세요..."></textarea>
+            <div style="display:flex;gap:8px;margin-top:10px;">
+              <button class="btn btn-green btn-full" onclick="submitCountermeasure()">대책 제출</button>
+              <button class="btn btn-outline" onclick="showScreen('joinScreen')">취소</button>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    window.submitCountermeasure = async () => {
+      const sessId = sessionStorage.getItem('sim_sess');
+      const teamId = sessionStorage.getItem('sim_team');
+      const cmText = document.getElementById('cmInput').value.trim();
+      
+      if (!cmText) return alert('개선 및 예방대책을 입력해주세요.');
+      
+      try {
+        await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'countermeasures'), { text: cmText, timestamp: new Date() });
+        showScreen('doneScreen');
+      } catch (e) { alert('전송 실패: ' + e.message); }
+    };
+
+window.goCountermeasures = () => {
+      refreshSelects(); 
+      document.getElementById('cmCourseSelect').value = '';
+      document.getElementById('cmContent').innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택하면 대책 결과가 표시됩니다.</p>';
+      showScreen('countermeasureScreen');
+    };
+
+    window.loadCountermeasureData = async () => {
+      const sessId = document.getElementById('cmCourseSelect').value;
+      const div = document.getElementById('cmContent');
+      if (!sessId) { div.innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>'; return; }
+      div.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">데이터 불러오는 중...</p>';
+      
+      let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
+      try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
+      const sc = SCENARIOS[cfg.scenario || 'con1'];
+      const answerKeys = sc ? sc.answer : [];
+
+      let html = '';
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const tid = `team_${i}`;
+        const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'countermeasures'));
+        
+        html += `<div class="card" style="margin-bottom:16px;">
+          <h4 style="color:var(--p);margin-bottom:12px;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">${i}팀 제안 개선 및 예방대책</h4>
+          <div style="margin-bottom:16px;">`;
+          
+        if (snap.empty) {
+          html += `<p style="font-size:.88rem;color:#64748b;">제출된 대책이 없습니다.</p>`;
+        } else {
+          let participantNum = 1;
+          snap.forEach(d => {
+            html += `<div style="background:#f8fafc;padding:10px 12px;border-radius:6px;margin-bottom:8px;font-size:.9rem;border:1px solid #e2e8f0;">
+              <strong style="color:var(--a);">참여자${participantNum} :</strong> <span style="white-space:pre-wrap;">${d.data().text}</span>
+            </div>`;
+            participantNum++;
+          });
+        }
+        
+        // 정답지 표출 영역
+        html += `</div>
+          <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;font-size:.9rem;">
+            <strong style="color:#ca8a04;">💡 전문가 판단 정답지 (사고 핵심 요인)</strong>
+            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+              ${answerKeys.map(k => `<span class="match-badge match-hit">${k}</span>`).join('')}
+            </div>
+          </div>
+        </div>`;
+      }
+      div.innerHTML = html;
+    };  
 
 window.goDashboard=()=>{
   refreshSelects();

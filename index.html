@@ -1365,47 +1365,61 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     // ── 토론 타이머 ─────────────────────────────────────
     let timerInterval = null;
-    let timerSeconds = 600;
+let timerDuration = 300;   // 설정된 총 시간(초)
+let timerStartedAt = null; // 타이머 시작한 실제 시각 (Date.now())
+let timerAlerted = false;  // 종료 알림 중복 방지
 
-    function initTimer(seconds) {
-      timerSeconds = seconds;
+function initTimer(seconds) {
+  timerDuration = seconds;
+  timerStartedAt = null;
+  timerAlerted = false;
+  clearInterval(timerInterval);
+  timerInterval = null;
+  renderTimer(seconds); // 초기 표시
+  const startBtn = document.getElementById('timerStartBtn');
+  if (startBtn) { startBtn.innerText = '타이머 시작'; startBtn.disabled = false; }
+}
+
+function renderTimer(remaining) {
+  const el = document.getElementById('timerDisplay');
+  if (!el) return;
+  const r = Math.max(0, Math.round(remaining));
+  const m = Math.floor(r / 60);
+  const s = r % 60;
+  el.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  el.className = 'timer-display ' + (r > 180 ? 'safe' : r > 60 ? 'warning' : '');
+}
+
+window.startTimer = () => {
+  if (timerInterval) return; // 이미 실행 중이면 무시
+  timerStartedAt = Date.now();
+  timerAlerted = false;
+  const startBtn = document.getElementById('timerStartBtn');
+  if (startBtn) startBtn.disabled = true;
+
+  timerInterval = setInterval(() => {
+    if (!timerStartedAt) return;
+    // 현재 시각 - 시작 시각으로 실제 경과 시간 계산
+    const elapsed = (Date.now() - timerStartedAt) / 1000;
+    const remaining = timerDuration - elapsed;
+
+    if (remaining <= 0) {
       clearInterval(timerInterval);
       timerInterval = null;
-      renderTimer();
-      const startBtn = document.getElementById('timerStartBtn');
-      if (startBtn) { startBtn.innerText = '타이머 시작'; startBtn.disabled = false; }
+      renderTimer(0);
+      if (!timerAlerted) {
+        timerAlerted = true;
+        alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.');
+      }
+      return;
     }
+    renderTimer(remaining);
+  }, 500); // 0.5초마다 갱신 — 화면 복귀 시 빠르게 보정됨
+};
 
-    function renderTimer() {
-      const el = document.getElementById('timerDisplay');
-      if (!el) return;
-      const m = Math.floor(timerSeconds / 60);
-      const s = timerSeconds % 60;
-      el.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-      el.className = 'timer-display ' + (timerSeconds > 180 ? 'safe' : timerSeconds > 60 ? 'warning' : '');
-    }
-
-    window.startTimer = () => {
-      if (timerInterval) return;
-      const startBtn = document.getElementById('timerStartBtn');
-      if (startBtn) startBtn.disabled = true;
-      timerInterval = setInterval(() => {
-        if (timerSeconds <= 0) {
-          clearInterval(timerInterval);
-          timerInterval = null;
-          const el = document.getElementById('timerDisplay');
-          if (el) { el.innerText = '00:00'; el.className = 'timer-display'; }
-          alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.');
-          return;
-        }
-        timerSeconds--;
-        renderTimer();
-      }, 1000);
-    };
-
-    window.resetTimer = () => {
-      initTimer(5 * 60);
-    };
+window.resetTimer = () => {
+  initTimer(5 * 60);
+};
 
     window.submitCountermeasure = async () => {
       const sessId = sessionStorage.getItem('sim_sess');

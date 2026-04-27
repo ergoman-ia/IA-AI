@@ -245,15 +245,18 @@ th{background:#f8fafc;font-weight:600;color:var(--p);border-bottom:2px solid #e2
         <label style="margin-bottom:4px;font-size:.82rem;">교과과정 선택</label>
         <select id="dashCourseSelect" onchange="onDashCourseChange()" style="margin:0;"></select>
       </div>
-      <div id="dashTeamCards"><p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p></div>
-      <div id="dashDetail" style="display:none;border-top:2px solid var(--br);padding-top:14px;margin-top:8px;">
-        <div id="dashDetailTitle" style="font-weight:600;color:var(--p);margin-bottom:10px;font-size:.95rem;"></div>
-        <div id="dashContent" class="table-wrap"></div>
-        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-          <button class="btn btn-orange btn-sm" id="closeSurveyBtn" onclick="closeSurveyForTeam()" style="display:none;">이 팀 설문 마감</button>
-          <button class="btn btn-red btn-sm" id="closeAllBtn" onclick="closeAllSurveys()" style="display:none;">전체 설문 마감</button>
+      <div id="dashTeamCards">
+          <p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>
         </div>
-      </div>
+
+        <div id="allSurveyControl" style="display:none; text-align:center; margin: 20px 0; padding: 15px; border-top: 1px dashed var(--br);">
+           <button class="btn btn-red" id="closeAllBtn" onclick="closeAllSurveys()" style="font-size: 1.1rem; padding: 12px 30px; box-shadow: 0 4px 6px rgba(220, 38, 38, 0.2);">전체 설문 마감</button>
+        </div>
+
+        <div id="dashDetail" style="display:none;border-top:2px solid var(--br);padding-top:14px;margin-top:8px;">
+          <div id="dashDetailTitle" style="font-weight:600;color:var(--p);margin-bottom:10px;font-size:.95rem;"></div>
+          <div id="dashContent" class="table-wrap"></div>
+          </div>
     </div>
   </div>
 

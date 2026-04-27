@@ -1048,42 +1048,32 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       document.getElementById('newCourseNm').value = '';
       alert(`'${nm}' 과정이 생성되었습니다.`);
     };
-
-    window.deleteCourse = async (nm) => {
-      if (!confirm(`'${nm}' 과정을 삭제하시겠습니까?\n⚠️ 주의: 해당 과정의 모든 설문 응답 및 예방대책 데이터도 영구적으로 함께 삭제됩니다.`)) return;
+    
+    window.deleteSession = async (name) => {
+      if (!confirm(`'${name}' 과정을 삭제하시겠습니까?\n⚠️ 주의: 해당 과정에 입력된 모든 데이터(개인 및 팀 순위)도 영구적으로 함께 삭제됩니다.`)) return;
 
       try {
-        // 1. 삭제할 과정의 팀 개수를 먼저 불러옵니다.
-        let tCount = 6;
-        const cfg = await getDoc(doc(db, 'course_configs', nm));
-        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+        let tCount = 7;
+        const cfg = await getDoc(doc(db, "course_configs", name));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 7;
 
         const batch = [];
-        // 2. 각 팀별로 저장된 모든 데이터를 싹 긁어와서 삭제 목록에 추가합니다.
         for (let i = 1; i <= tCount; i++) {
-          const tid = `team_${i}`;
+          const teamId = `team_${i}`;
+          const subSnap = await getDocs(collection(db, "sessions", name, "teams", teamId, "submissions"));
 
-          // 설문 응답 삭제
-          const subSnap = await getDocs(collection(db, 'sessions', nm, 'teams', tid, 'submissions'));
-          subSnap.forEach(d => batch.push(deleteDoc(d.ref)));
-
-          // 예방대책 삭제
-          const cmSnap = await getDocs(collection(db, 'sessions', nm, 'teams', tid, 'countermeasures'));
-          cmSnap.forEach(d => batch.push(deleteDoc(d.ref)));
-
-          // 마감 상태 문서 삭제
-          batch.push(deleteDoc(doc(db, 'sessions', nm, 'teams', tid, 'meta', 'status')));
+          subSnap.forEach(d => {
+            batch.push(deleteDoc(d.ref));
+          });
         }
 
-        // 3. 수집한 모든 하위 데이터들을 DB에서 일괄 삭제합니다.
         await Promise.all(batch);
 
-        // 4. 마지막으로 과정 설정 문서와 전체 목록에서 해당 과정을 완전히 지웁니다.
-        await deleteDoc(doc(db, 'course_configs', nm));
-        await updateDoc(doc(db, 'settings', 'courses'), { list: arrayRemove(nm), activeList: arrayRemove(nm) });
+        await deleteDoc(doc(db, "course_configs", name));
+        await updateDoc(doc(db, "settings", "courses"), { list: arrayRemove(name), activeList: arrayRemove(name) });
 
-        alert(`'${nm}' 과정과 관련된 모든 데이터가 완벽하게 삭제되었습니다.`);
-        
+        alert(`'${name}' 과정과 관련된 모든 데이터가 완벽하게 삭제되었습니다.`);
+
       } catch (error) {
         console.error("과정 삭제 중 오류 발생:", error);
         alert("삭제 중 오류가 발생했습니다.");
@@ -1317,19 +1307,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const submissionSnap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'submissions'));
         let accuracyHtml = "";
         if (!submissionSnap.empty) {
-            const sums = new Array(12).fill(0);
-            submissionSnap.forEach(d => {
-                const s = d.data().scores;
-                if (s) s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
-            });
-            const indexed = QUESTIONS[cfg.industry || 'construction'].map((q, i) => ({ name: q.factor, val: sums[i] })).sort((a,b)=>b.val-a.val);
-            const total = indexed.reduce((s,x)=>s+x.val, 0);
-            let cum = 0, pIdx = -1;
-            for(let i=0; i<indexed.length; i++) { cum += indexed[i].val; if(cum/total >= 0.8 && pIdx === -1) pIdx = i; }
-            const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
-            const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
-            const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-            accuracyHtml = `<span class="badge ${accuracy >= 70 ? 'bg-green' : 'bg-red'}" style="margin-left:10px;">팀원들의 정확도: ${accuracy}%</span>`;
+          const sums = new Array(12).fill(0);
+          submissionSnap.forEach(d => {
+            const s = d.data().scores;
+            if (s) s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
+          });
+          const indexed = QUESTIONS[cfg.industry || 'construction'].map((q, i) => ({ name: q.factor, val: sums[i] })).sort((a, b) => b.val - a.val);
+          const total = indexed.reduce((s, x) => s + x.val, 0);
+          let cum = 0, pIdx = -1;
+          for (let i = 0; i < indexed.length; i++) { cum += indexed[i].val; if (cum / total >= 0.8 && pIdx === -1) pIdx = i; }
+          const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
+          const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
+          const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
+          accuracyHtml = `<span class="badge ${accuracy >= 70 ? 'bg-green' : 'bg-red'}" style="margin-left:10px;">팀원들의 정확도: ${accuracy}%</span>`;
         }
 
         html += `</div>
@@ -1366,18 +1356,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       document.getElementById('dashDetail').style.display = 'none';
       const allCtrl = document.getElementById('allSurveyControl');
 
-      if (!sess) { 
-        document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>'; 
+      if (!sess) {
+        document.getElementById('dashTeamCards').innerHTML = '<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>';
         if (allCtrl) allCtrl.style.display = 'none';
-        return; 
+        return;
       }
 
       const isClosed = await checkIfClosed(sess, 'team_1');
-      
+
       if (isClosed) {
         // 💡 마감된 상태라면 마감 컨트롤 영역은 아예 숨겨버립니다.
-        if (allCtrl) allCtrl.style.display = 'none'; 
-        
+        if (allCtrl) allCtrl.style.display = 'none';
+
         // 💡 마감 안내 배너 안에 '마감 취소(되살리기)' 버튼을 직관적으로 배치합니다.
         document.getElementById('dashTeamCards').innerHTML = `
           <div class="error-banner" style="background:#f1f5f9; border-color:#cbd5e1; color:#475569; margin: 20px 0; padding: 24px;">
@@ -1442,22 +1432,22 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       try {
         let tCount = 6;
         // 1. 현재 과정의 총 팀 개수를 불러옵니다.
-        const cfg = await getDoc(doc(db, 'course_configs', currentDashSess)); 
-        if (cfg.exists()) tCount = cfg.data().teamCount || 6; 
-        
+        const cfg = await getDoc(doc(db, 'course_configs', currentDashSess));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+
         // 2. 모든 팀의 상태를 'closed: true'로 변경하는 작업을 준비합니다.
         const batch = [];
         for (let i = 1; i <= tCount; i++) {
-          batch.push(setDoc(doc(db, 'sessions', currentDashSess, 'teams', `team_${i}`, 'meta', 'status'), { 
-            closed: true, 
-            closedAt: new Date() 
+          batch.push(setDoc(doc(db, 'sessions', currentDashSess, 'teams', `team_${i}`, 'meta', 'status'), {
+            closed: true,
+            closedAt: new Date()
           }));
         }
-        
+
         // 3. DB에 일괄 전송합니다.
         await Promise.all(batch);
         alert('전체 팀 설문이 성공적으로 마감되었습니다.');
-        
+
       } catch (error) {
         console.error("마감 처리 중 에러 발생:", error);
         alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
@@ -1467,17 +1457,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     // (기존 코드) 마감 처리 함수
     window.closeAllSurveys = async () => {
       // ... 생략 ...
-      } catch (error) {
-        console.error("마감 처리 중 에러 발생:", error);
-        alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
-      }
+    } catch (error) {
+      console.error("마감 처리 중 에러 발생:", error);
+      alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
+    }
     };
 
     // 👇 여기에 아래의 새로운 함수를 통째로 붙여넣어 주세요! 👇
 
     window.cancelAllSurveys = async () => {
       if (!currentDashSess) return;
-      
+
       // 💡 관리자에게 데이터가 삭제된다는 것을 명확히 고지합니다.
       if (!confirm('전체 설문 마감을 취소하시겠습니까?\n⚠️ 주의: 각 팀이 이미 제출한 [개선 및 예방대책] 데이터가 모두 초기화됩니다.')) return;
 
@@ -1489,7 +1479,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const batch = [];
         for (let i = 1; i <= tCount; i++) {
           const tid = `team_${i}`;
-          
+
           // 1. 마감 상태 문서 삭제
           batch.push(deleteDoc(doc(db, 'sessions', currentDashSess, 'teams', tid, 'meta', 'status')));
 
@@ -1499,14 +1489,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
             batch.push(deleteDoc(d.ref));
           });
         }
-        
+
         // 3. DB에 일괄 전송하여 한 번에 처리
         await Promise.all(batch);
-        
+
         alert('전체 마감이 취소되었으며, 기존 대책 데이터가 안전하게 초기화되었습니다.');
-        
-        onDashCourseChange(); 
-        
+
+        onDashCourseChange();
+
       } catch (error) {
         console.error("마감 취소 에러:", error);
         alert('처리 중 오류가 발생했습니다.');
@@ -1566,7 +1556,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
         }
         const topItems = indexed.slice(0, paretoIdx + 1);
-        
+
         // 💡 [수정 반영] 팀원간 일치도(합의도) 계산
         const consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
 

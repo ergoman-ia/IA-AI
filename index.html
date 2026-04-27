@@ -586,16 +586,6 @@
               <option value="mfg3">제조3 — 조립라인 이물질·비상대응 실패</option>
             </select>
             <button class="btn btn-blue btn-full" onclick="addCourse()">과정 생성</button>
-
-            <div id="qrArea" style="display:none;text-align:center;padding:14px;background:#f0f9ff;
-  border:1px solid #bae6fd;border-radius:8px;margin-bottom:10px;">
-              <div style="font-size:.82rem;color:#0c4a6e;margin-bottom:8px;font-weight:600;">
-                참가자 접속 QR 코드
-              </div>
-              <div id="qrCode"></div>
-              <div style="font-size:.78rem;color:#64748b;margin-top:6px;" id="qrUrl"></div>
-            </div>
-
             <div style="margin-top:12px;max-height:180px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;"
               id="courseListAdmin"></div>
           </div>
@@ -1073,33 +1063,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       document.getElementById('newCourseNm').value = '';
       alert(`'${nm}' 과정이 생성되었습니다.`);
-
-      // QR 코드 생성
-      generateQR();
     };
-
-    function generateQR() {
-      const qrArea = document.getElementById('qrArea');
-      const qrCodeEl = document.getElementById('qrCode');
-      const qrUrlEl = document.getElementById('qrUrl');
-      if (!qrArea || !qrCodeEl) return;
-
-      // 현재 페이지 URL (참가자는 같은 파일에 접속)
-      const url = window.location.href.split('?')[0];
-
-      qrCodeEl.innerHTML = '';
-      new QRCode(qrCodeEl, {
-        text: url,
-        width: 160,
-        height: 160,
-        colorDark: '#1a3a5c',
-        colorLight: '#ffffff',
-        correctLevel: QRCode.CorrectLevel.M
-      });
-
-      if (qrUrlEl) qrUrlEl.innerText = url;
-      qrArea.style.display = 'block';
-    }
 
     window.deleteCourse = async (nm) => {
       if (!confirm(`'${nm}' 과정을 삭제하시겠습니까?\n⚠️ 주의: 해당 과정의 모든 설문 응답 및 예방대책 데이터도 영구적으로 함께 삭제됩니다.`)) return;
@@ -1370,7 +1334,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
   <!-- 토론 타이머 -->
   <div class="timer-box">
     <div style="font-size:.85rem;color:#64748b;margin-bottom:6px;">팀 토론 권장 시간</div>
-    <div class="timer-display safe" id="timerDisplay">10:00</div>
+    <div class="timer-display safe" id="timerDisplay">5:00</div>
     <div style="display:flex;gap:8px;justify-content:center;margin-top:10px;flex-wrap:wrap;">
       <button class="btn btn-red btn-sm" id="timerStartBtn" onclick="startTimer()">타이머 시작</button>
       <button class="btn btn-outline btn-sm" onclick="resetTimer()">초기화</button>
@@ -1463,66 +1427,173 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     window.loadCountermeasureData = async () => {
       const sessId = document.getElementById('cmCourseSelect').value;
       const div = document.getElementById('cmContent');
-      if (!sessId) { div.innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>'; return; }
+      if (!sessId) {
+        div.innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>';
+        return;
+      }
       div.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">데이터 불러오는 중...</p>';
 
       let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
       try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
+
       const sc = SCENARIOS[cfg.scenario || 'con1'];
       const answerKeys = sc ? sc.answer : [];
+      const qs = QUESTIONS[cfg.industry || 'construction'];
+      const factorNames = qs.map(q => q.factor);
 
-      let html = '';
+      // ── 1. 시나리오 정보 + 전체 팀 TOP3 요인 비교 테이블 ──────────
+      let allTeamSummary = [];
       for (let i = 1; i <= cfg.teamCount; i++) {
         const tid = `team_${i}`;
-        const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'countermeasures'));
-
-        html += `<div class="card" style="margin-bottom:16px;">
-          <h4 style="color:var(--p);margin-bottom:12px;border-bottom:2px solid #e2e8f0;padding-bottom:8px;">${i}팀 제안 개선 및 예방대책</h4>
-          <div style="margin-bottom:16px;">`;
-
-        if (snap.empty) {
-          html += `<p style="font-size:.88rem;color:#64748b;">제출된 대책이 없습니다.</p>`;
-        } else {
-          let participantNum = 1;
-          snap.forEach(d => {
-            html += `<div style="background:#f8fafc;padding:10px 12px;border-radius:6px;margin-bottom:8px;font-size:.9rem;border:1px solid #e2e8f0;">
-              <strong style="color:var(--a);">참여자${participantNum} :</strong> <span style="white-space:pre-wrap; word-break:break-all;">${d.data().text}</span>
-            </div>`;
-            participantNum++;
-          });
+        const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'submissions'));
+        if (snap.empty) { allTeamSummary.push({ name: `${i}팀`, cnt: 0, top3: [] }); continue; }
+        const sums = new Array(12).fill(0);
+        let cnt = 0;
+        snap.forEach(d => {
+          const s = d.data().scores;
+          if (s && Array.isArray(s)) {
+            s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
+            cnt++;
+          }
+        });
+        const indexed = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }))
+          .sort((a, b) => b.val - a.val);
+        const tot = indexed.reduce((s, x) => s + x.val, 0);
+        // TOP3 추출
+        const top3 = indexed.slice(0, 3).map(x => ({
+          name: x.name,
+          pct: tot > 0 ? Math.round(x.val / tot * 100) : 0,
+          isHit: answerKeys.includes(x.name)
+        }));
+        // 정확도 계산 (파레토 80% 기준)
+        let cum = 0, pIdx = -1;
+        for (let j = 0; j < indexed.length; j++) {
+          cum += indexed[j].val;
+          if (cum / tot >= 0.8 && pIdx === -1) pIdx = j;
         }
-
-        // 💡 팀별 정확도 계산 로직 추가
-        const submissionSnap = await getDocs(collection(db, 'sessions', sessId, 'teams', tid, 'submissions'));
-        let accuracyHtml = "";
-        if (!submissionSnap.empty) {
-          const sums = new Array(12).fill(0);
-          submissionSnap.forEach(d => {
-            const s = d.data().scores;
-            if (s) s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
-          });
-          const indexed = QUESTIONS[cfg.industry || 'construction'].map((q, i) => ({ name: q.factor, val: sums[i] })).sort((a, b) => b.val - a.val);
-          const total = indexed.reduce((s, x) => s + x.val, 0);
-          let cum = 0, pIdx = -1;
-          for (let i = 0; i < indexed.length; i++) { cum += indexed[i].val; if (cum / total >= 0.8 && pIdx === -1) pIdx = i; }
-          const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
-          const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
-          const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-          accuracyHtml = `<span class="badge ${accuracy >= 70 ? 'bg-green' : 'bg-red'}" style="margin-left:10px;">팀원들의 정확도: ${accuracy}%</span>`;
-        }
-
-        html += `</div>
-          <div style="background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:12px;font-size:.9rem;">
-            <div style="display:flex; justify-content:space-between; align-items:center;">
-              <strong style="color:#ca8a04;">💡 전문가 판단 정답지 (사고 핵심 요인)</strong>
-              ${accuracyHtml}
-            </div>
-            <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
-              ${answerKeys.map(k => `<span class="match-badge match-hit">${k}</span>`).join('')}
-            </div>
-          </div>
-        </div>`;
+        const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
+        const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
+        const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
+        allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy });
       }
+
+      // 요약 테이블 행 생성
+      let summaryRows = '';
+      allTeamSummary.forEach(t => {
+        if (!t.top3.length) {
+          summaryRows += `<tr>
+        <td><strong>${t.name}</strong></td>
+        <td colspan="4" style="color:#94a3b8;font-size:.82rem;">응답 없음</td>
+      </tr>`;
+          return;
+        }
+        const rankCols = [1, 2, 3].map(rank => {
+          const item = t.top3[rank - 1];
+          if (!item) return `<td style="color:#e2e8f0;">-</td>`;
+          return `<td>
+        <span style="padding:3px 8px;border-radius:4px;font-size:.8rem;font-weight:600;
+          background:${item.isHit ? '#dcfce7' : '#fee2e2'};
+          color:${item.isHit ? '#166534' : '#991b1b'};">
+          ${item.name}
+        </span>
+        <span style="font-size:.75rem;color:#94a3b8;margin-left:2px;">${item.pct}%</span>
+      </td>`;
+        }).join('');
+        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
+        summaryRows += `<tr>
+      <td><strong>${t.name}</strong><br>
+        <span style="font-size:.78rem;color:#64748b;">${t.cnt}명</span>
+      </td>
+      ${rankCols}
+      <td><strong style="color:${accColor};">${t.accuracy}%</strong></td>
+    </tr>`;
+      });
+
+      let html = `
+    <!-- 시나리오 정보 -->
+    <div style="background:#fef9ec;border:1px solid #fde68a;border-radius:8px;
+      padding:12px 14px;margin-bottom:14px;font-size:.88rem;line-height:1.7;">
+      <div><strong>시나리오:</strong> ${sc ? sc.label : '-'}</div>
+      <div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        <strong>전문가 정답 요인:</strong>
+        ${answerKeys.map(k =>
+        `<span style="padding:3px 9px;border-radius:4px;font-size:.82rem;font-weight:600;
+            background:#dcfce7;color:#166534;">${k}</span>`
+      ).join('')}
+      </div>
+    </div>
+
+    <!-- 전체 팀 TOP3 요인 비교 -->
+    <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;
+      padding:14px;margin-bottom:20px;">
+      <strong style="color:var(--p);font-size:.95rem;">전체 팀 핵심 요인 비교 (TOP 3)</strong>
+      <div style="font-size:.78rem;color:#94a3b8;margin-bottom:10px;margin-top:2px;">
+        초록 = 전문가 정답 포함 / 빨강 = 정답 미포함
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:70px;">팀</th>
+              <th>1순위</th>
+              <th>2순위</th>
+              <th>3순위</th>
+              <th style="width:65px;">정확도</th>
+            </tr>
+          </thead>
+          <tbody>${summaryRows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+
+      // ── 2. 팀별 예방대책 카드 ──────────────────────────────────────
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const tid = `team_${i}`;
+        const cmSnap = await getDocs(
+          collection(db, 'sessions', sessId, 'teams', tid, 'countermeasures')
+        );
+        const teamData = allTeamSummary.find(t => t.name === `${i}팀`);
+        const accuracy = teamData ? teamData.accuracy : null;
+        const accColor = accuracy === null ? '#64748b'
+          : accuracy >= 70 ? '#16a34a'
+            : accuracy >= 40 ? '#d97706' : '#dc2626';
+
+        html += `<div class="card" style="margin-bottom:14px;">
+      <!-- 타이틀 + 정확도 배지 -->
+      <div style="display:flex;justify-content:space-between;align-items:center;
+        margin-bottom:12px;border-bottom:2px solid #e2e8f0;padding-bottom:8px;flex-wrap:wrap;gap:6px;">
+        <h4 style="color:var(--p);margin:0;">${i}팀 제안 개선 및 예방대책</h4>
+        ${accuracy !== null
+            ? `<span class="badge" style="background:${accColor};">
+               팀원 정확도 ${accuracy}%
+             </span>`
+            : ''
+          }
+      </div>`;
+
+        // 예방대책 내용
+        if (cmSnap.empty) {
+          html += `<p style="font-size:.88rem;color:#64748b;padding:8px 0;">
+        제출된 대책이 없습니다.
+      </p>`;
+        } else {
+          let num = 1;
+          cmSnap.forEach(d => {
+            html += `<div style="background:#f8fafc;padding:10px 12px;border-radius:6px;
+          margin-bottom:8px;font-size:.9rem;border:1px solid #e2e8f0;">
+          <strong style="color:var(--a);">참여자${num} :</strong>
+          <span style="white-space:pre-wrap;word-break:break-all;">${d.data().text}</span>
+        </div>`;
+            num++;
+          });
+        }
+
+        html += `</div>`;
+      }
+
+      // ── 3. 전문가 정답지는 상단 시나리오 박스로 통합했으므로 팀별 반복 제거 ──
+
       div.innerHTML = html;
     };
 
@@ -1723,59 +1794,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         teamResults.push({ name: `${i}팀`, cnt, sums });
       }
 
-      let html = `<div style="background:#fef9ec;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.88rem;">
-    <strong>시나리오:</strong> ${sc ? sc.label : ''}
-    <span style="margin-left:12px;"><strong>정답 요인:</strong> ${answerKeys.join(' / ')}</span>
-  </div>`;
-
-      // 전체 팀 Top1 요인 요약 테이블
-      let summaryRows = '';
-      teamResults.forEach(t => {
-        if (!t.sums) {
-          summaryRows += `<tr><td>${t.name}</td><td colspan="3" style="color:#94a3b8;">응답 없음</td></tr>`;
-          return;
-        }
-        const idxArr = factorNames.map((nm, i) => ({ name: nm, val: t.sums[i] })).sort((a, b) => b.val - a.val);
-        const tot = idxArr.reduce((s, x) => s + x.val, 0);
-        const top1 = idxArr[0];
-        const isHit = answerKeys.includes(top1.name);
-        summaryRows += `<tr>
-    <td><strong>${t.name}</strong></td>
-    <td>${t.cnt}명</td>
-    <td>
-      <span style="padding:3px 8px;border-radius:4px;font-size:.82rem;font-weight:600;
-        background:${isHit ? '#dcfce7' : '#fee2e2'};
-        color:${isHit ? '#166534' : '#991b1b'};">
-        ${top1.name}
-      </span>
-    </td>
-    <td style="color:#64748b;font-size:.82rem;">
-      ${tot > 0 ? Math.round(top1.val / tot * 100) : 0}%
-    </td>
-  </tr>`;
-      });
-
-      html += `
-  <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:14px;margin-bottom:16px;">
-    <strong style="color:var(--p);font-size:.95rem;">전체 팀 Top1 요인 비교</strong>
-    <div class="table-wrap" style="margin-top:10px;">
-      <table>
-        <thead>
-          <tr>
-            <th>팀</th><th>응답</th>
-            <th>1순위 요인</th>
-            <th>비중</th>
-          </tr>
-        </thead>
-        <tbody>${summaryRows}</tbody>
-      </table>
-    </div>
-    <div style="font-size:.78rem;color:#94a3b8;margin-top:8px;">
-      초록 = 전문가 정답 포함 / 빨강 = 정답 미포함
-    </div>
-  </div>
-`;
-
       teamResults.forEach(t => {
         if (!t.sums) {
           html += `<div class="card" style="margin-bottom:12px;"><strong>${t.name}</strong> — 응답 없음</div>`;
@@ -1918,7 +1936,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       location.reload();
     };
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
 </body>
 
 </html>

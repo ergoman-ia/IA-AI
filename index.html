@@ -1918,8 +1918,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     window.delDoc = async (sess, teamId, docId) => {
       if (!confirm('삭제하시겠습니까?')) return;
-      await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId));
-      loadAdminData();
+      try {
+           await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId));
+           alert("삭제되었습니다.");
+           loadAdminData();
+      } catch(e) { alert("삭제 실패 : " + e.message);}
     };
 
     window.exportCSV = async () => {

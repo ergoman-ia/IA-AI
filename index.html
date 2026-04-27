@@ -1225,61 +1225,54 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         // 재제출 방지 플래그
         sessionStorage.setItem(`submitted_${sessId}_${teamId}`, 'true');
         // 개인 피드백 렌더링
-        renderPersonalFeedback(scores, scenarioKey);
+        renderPersonalFeedback(scores);
         showScreen('doneScreen');
       } catch (e) { alert('전송 실패: ' + e.message); }
     };
 
-    function renderPersonalFeedback(scores, scenarioKey) {
-      const feedbackEl = document.getElementById('personalFeedback');
-      if (!feedbackEl) return;
+    function renderPersonalFeedback(scores) {
+  const feedbackEl = document.getElementById('personalFeedback');
+  if (!feedbackEl) return;
 
-      // 가중점수 기준 내림차순 정렬
-      const sorted = [...scores].sort((a, b) => b.weighted - a.weighted);
-      const total = sorted.reduce((s, x) => s + x.weighted, 0);
+  // 가중점수 기준 내림차순 정렬
+  const sorted = [...scores].sort((a, b) => b.weighted - a.weighted);
+  const total = sorted.reduce((s, x) => s + x.weighted, 0);
 
-      // 파레토 80% 추출
-      let cum = 0, paretoIdx = -1;
-      for (let i = 0; i < sorted.length; i++) {
-        cum += sorted[i].weighted;
-        if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
-      }
-      const myTop = sorted.slice(0, paretoIdx + 1);
+  // 파레토 80% 추출
+  let cum = 0, paretoIdx = -1;
+  for (let i = 0; i < sorted.length; i++) {
+    cum += sorted[i].weighted;
+    if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
+  }
+  const myTop = sorted.slice(0, paretoIdx + 1);
 
-      // 정답과 비교
-      const sc = SCENARIOS[scenarioKey];
-      const answerKeys = sc ? sc.answer : [];
-      const matchCnt = myTop.filter(x => answerKeys.includes(x.factor)).length;
-      const matchRate = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-
-      const scoreColor = matchRate >= 70 ? '#16a34a' : matchRate >= 40 ? '#d97706' : '#dc2626';
-      const scoreLabel = matchRate >= 70 ? '높음' : matchRate >= 40 ? '보통' : '낮음';
-
-      feedbackEl.innerHTML = `
-    <div style="background:#f0f9ff;border:1px solid #bae6fd;border-radius:10px;padding:14px;">
-      <div style="font-weight:600;color:#0c4a6e;margin-bottom:10px;font-size:.95rem;">
-        나의 진단 결과 — 상위 요인
+  feedbackEl.innerHTML = `
+    <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:10px;padding:14px;">
+      <div style="font-weight:600;color:#7f1d1d;margin-bottom:10px;font-size:.95rem;">
+        나의 진단 결과 — 핵심 위험 요인
       </div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;">
-        ${myTop.map(x => {
-        const isHit = answerKeys.includes(x.factor);
-        return `<span style="padding:4px 10px;border-radius:6px;font-size:.82rem;font-weight:600;
-            background:${isHit ? '#dcfce7' : '#fee2e2'};
-            color:${isHit ? '#166534' : '#991b1b'};">
-            ${x.factor} (${total > 0 ? Math.round(x.weighted / total * 100) : 0}%)
-          </span>`;
-      }).join('')}
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px;">
+        ${myTop.map(x => `
+          <span style="
+            padding:6px 14px;
+            border-radius:6px;
+            font-size:.88rem;
+            font-weight:600;
+            background:#dc2626;
+            color:#fff;">
+            ${x.factor}
+            <span style="font-size:.78rem;font-weight:400;opacity:.85;">
+              (${total > 0 ? Math.round(x.weighted / total * 100) : 0}%)
+            </span>
+          </span>`
+        ).join('')}
       </div>
-      <div style="font-size:.85rem;color:#475569;border-top:1px solid #e0f2fe;padding-top:10px;display:flex;align-items:center;gap:8px;">
-        <span>전문가 정답과의 일치율</span>
-        <strong style="color:${scoreColor};font-size:1rem;">${matchRate}% (${scoreLabel})</strong>
-      </div>
-      <div style="font-size:.8rem;color:#94a3b8;margin-top:6px;">
-        ※ 이 결과는 개인 참고용입니다. 팀 토론 후 결과가 달라질 수 있습니다.
+      <div style="font-size:.8rem;color:#991b1b;margin-top:6px;">
+        ※ 팀원과 토론 후 대책을 수립하세요.
       </div>
     </div>
   `;
-    }
+}
 
     async function buildPhase2Screen(sessId, teamId, scenarioKey, industryKey, teamText) {
       document.getElementById('surveyTitle').innerText = `${teamText} — 개선 및 예방대책 수립`;
@@ -1365,61 +1358,61 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     // ── 토론 타이머 ─────────────────────────────────────
     let timerInterval = null;
-let timerDuration = 300;   // 설정된 총 시간(초)
-let timerStartedAt = null; // 타이머 시작한 실제 시각 (Date.now())
-let timerAlerted = false;  // 종료 알림 중복 방지
+    let timerDuration = 300;   // 설정된 총 시간(초)
+    let timerStartedAt = null; // 타이머 시작한 실제 시각 (Date.now())
+    let timerAlerted = false;  // 종료 알림 중복 방지
 
-function initTimer(seconds) {
-  timerDuration = seconds;
-  timerStartedAt = null;
-  timerAlerted = false;
-  clearInterval(timerInterval);
-  timerInterval = null;
-  renderTimer(seconds); // 초기 표시
-  const startBtn = document.getElementById('timerStartBtn');
-  if (startBtn) { startBtn.innerText = '타이머 시작'; startBtn.disabled = false; }
-}
-
-function renderTimer(remaining) {
-  const el = document.getElementById('timerDisplay');
-  if (!el) return;
-  const r = Math.max(0, Math.round(remaining));
-  const m = Math.floor(r / 60);
-  const s = r % 60;
-  el.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-  el.className = 'timer-display ' + (r > 180 ? 'safe' : r > 60 ? 'warning' : '');
-}
-
-window.startTimer = () => {
-  if (timerInterval) return; // 이미 실행 중이면 무시
-  timerStartedAt = Date.now();
-  timerAlerted = false;
-  const startBtn = document.getElementById('timerStartBtn');
-  if (startBtn) startBtn.disabled = true;
-
-  timerInterval = setInterval(() => {
-    if (!timerStartedAt) return;
-    // 현재 시각 - 시작 시각으로 실제 경과 시간 계산
-    const elapsed = (Date.now() - timerStartedAt) / 1000;
-    const remaining = timerDuration - elapsed;
-
-    if (remaining <= 0) {
+    function initTimer(seconds) {
+      timerDuration = seconds;
+      timerStartedAt = null;
+      timerAlerted = false;
       clearInterval(timerInterval);
       timerInterval = null;
-      renderTimer(0);
-      if (!timerAlerted) {
-        timerAlerted = true;
-        alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.');
-      }
-      return;
+      renderTimer(seconds); // 초기 표시
+      const startBtn = document.getElementById('timerStartBtn');
+      if (startBtn) { startBtn.innerText = '타이머 시작'; startBtn.disabled = false; }
     }
-    renderTimer(remaining);
-  }, 500); // 0.5초마다 갱신 — 화면 복귀 시 빠르게 보정됨
-};
 
-window.resetTimer = () => {
-  initTimer(5 * 60);
-};
+    function renderTimer(remaining) {
+      const el = document.getElementById('timerDisplay');
+      if (!el) return;
+      const r = Math.max(0, Math.round(remaining));
+      const m = Math.floor(r / 60);
+      const s = r % 60;
+      el.innerText = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+      el.className = 'timer-display ' + (r > 180 ? 'safe' : r > 60 ? 'warning' : '');
+    }
+
+    window.startTimer = () => {
+      if (timerInterval) return; // 이미 실행 중이면 무시
+      timerStartedAt = Date.now();
+      timerAlerted = false;
+      const startBtn = document.getElementById('timerStartBtn');
+      if (startBtn) startBtn.disabled = true;
+
+      timerInterval = setInterval(() => {
+        if (!timerStartedAt) return;
+        // 현재 시각 - 시작 시각으로 실제 경과 시간 계산
+        const elapsed = (Date.now() - timerStartedAt) / 1000;
+        const remaining = timerDuration - elapsed;
+
+        if (remaining <= 0) {
+          clearInterval(timerInterval);
+          timerInterval = null;
+          renderTimer(0);
+          if (!timerAlerted) {
+            timerAlerted = true;
+            alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.');
+          }
+          return;
+        }
+        renderTimer(remaining);
+      }, 500); // 0.5초마다 갱신 — 화면 복귀 시 빠르게 보정됨
+    };
+
+    window.resetTimer = () => {
+      initTimer(5 * 60);
+    };
 
     window.submitCountermeasure = async () => {
       const sessId = sessionStorage.getItem('sim_sess');

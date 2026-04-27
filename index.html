@@ -1127,11 +1127,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       // [추가된 로직] 과정 마감 여부에 따라 버튼 바탕색과 텍스트 변경
       const isClosed = localStorage.getItem(`closed_${sess}`) === 'true';
-      if (isClosed && joinBtn) {
+      if (isClosed) {
         joinBtn.innerText = '개선 및 예방대책 입력'; // 텍스트 변경
         joinBtn.classList.remove('btn-blue');      // 기존 파란색 제거
         joinBtn.classList.add('btn-green');         // 녹색(바탕) 추가
-      } else if (joinBtn) {
+      } else {
         joinBtn.innerText = '휴먼에러 헌팅 시작';   // 원복
         joinBtn.classList.remove('btn-green');
         joinBtn.classList.add('btn-blue');

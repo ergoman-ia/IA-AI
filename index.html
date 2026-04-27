@@ -994,8 +994,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       ['dashCourseSelect', 'resultCourseSelect', 'cmCourseSelect'].forEach(id => {
         const el = document.getElementById(id);
         if (!el) return;
+        const cur = el.value;
         const opts = courseList.slice().reverse().map(c => `<option value="${c}">${c}</option>`).join('');
         el.innerHTML = `<option value="">선택...</option>${opts}`;
+        // 이미 선택된 값 유지
+        if (cur && courseList.includes(cur)) el.value = cur;
       });
     }
 
@@ -1868,6 +1871,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         }
       }
       if (!rows.length) { div.innerHTML = '<p style="text-align:center;padding:12px;color:#94a3b8;font-size:.88rem;">데이터 없음</p>'; return; }
+
+      // 최신 과정이 위로, 같은 과정 내에서는 최신 제출이 위로
+      rows.sort((a, b) => {
+        const iA = courseList.indexOf(a.sess);
+        const iB = courseList.indexOf(b.sess);
+        if (iA !== iB) return iB - iA; // courseList 뒤쪽(최신)일수록 위로
+        const tA = a.ts ? a.ts.seconds : 0;
+        const tB = b.ts ? b.ts.seconds : 0;
+        return tB - tA; // 같은 과정 내에서는 최신 제출이 위로
+      });
+
       div.innerHTML = `<table style="font-size:.82rem;"><thead><tr><th>과정</th><th>팀</th><th>제출 시각</th><th>삭제</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.sess}</td><td>${r.team}</td><td style="font-size:.78rem;">${r.ts ? new Date(r.ts.seconds * 1000).toLocaleString('ko-KR') : '-'}</td><td><button class="btn btn-red btn-sm" onclick="delDoc('${r.sess}','${r.teamId}','${r.id}')">삭제</button></td></tr>`).join('')
         }</tbody></table>`;
     };

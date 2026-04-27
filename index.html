@@ -1429,6 +1429,55 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }
     };
 
+    // (기존 코드) 마감 처리 함수
+    window.closeAllSurveys = async () => {
+      // ... 생략 ...
+      } catch (error) {
+        console.error("마감 처리 중 에러 발생:", error);
+        alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
+      }
+    };
+
+    // 👇 여기에 아래의 새로운 함수를 통째로 붙여넣어 주세요! 👇
+
+    window.cancelAllSurveys = async () => {
+      if (!currentDashSess) return;
+      
+      // 💡 관리자에게 데이터가 삭제된다는 것을 명확히 고지합니다.
+      if (!confirm('전체 설문 마감을 취소하시겠습니까?\n⚠️ 주의: 각 팀이 이미 제출한 [개선 및 예방대책] 데이터가 모두 초기화됩니다.')) return;
+
+      try {
+        let tCount = 6;
+        const cfg = await getDoc(doc(db, 'course_configs', currentDashSess));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+
+        const batch = [];
+        for (let i = 1; i <= tCount; i++) {
+          const tid = `team_${i}`;
+          
+          // 1. 마감 상태 문서 삭제
+          batch.push(deleteDoc(doc(db, 'sessions', currentDashSess, 'teams', tid, 'meta', 'status')));
+
+          // 2. 💡 해당 팀의 '개선 및 예방대책' 데이터 조회 후 일괄 삭제
+          const cmSnap = await getDocs(collection(db, 'sessions', currentDashSess, 'teams', tid, 'countermeasures'));
+          cmSnap.forEach(d => {
+            batch.push(deleteDoc(d.ref));
+          });
+        }
+        
+        // 3. DB에 일괄 전송하여 한 번에 처리
+        await Promise.all(batch);
+        
+        alert('전체 마감이 취소되었으며, 기존 대책 데이터가 안전하게 초기화되었습니다.');
+        
+        onDashCourseChange(); 
+        
+      } catch (error) {
+        console.error("마감 취소 에러:", error);
+        alert('처리 중 오류가 발생했습니다.');
+      }
+    };
+
     window.goAllResult = () => {
       refreshSelects();
       document.getElementById('resultCourseSelect').value = '';

@@ -1,0 +1,730 @@
+
+<style>
+:root{--p:#1a3a5c;--a:#2563eb;--s:#16a34a;--w:#d97706;--d:#dc2626;--bg:#f0f4f8;--cb:#fff;--br:#e2e8f0;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Pretendard','Malgun Gothic',sans-serif;background:var(--bg);color:#1e293b;line-height:1.5;padding:16px;}
+.container{max-width:1100px;margin:0 auto;}
+.card{background:var(--cb);border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,.07);padding:24px;margin-bottom:16px;border:1px solid var(--br);}
+.header-top{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid var(--p);padding-bottom:16px;margin-bottom:24px;flex-wrap:wrap;gap:8px;}
+h1{font-size:1.6rem;color:var(--p);letter-spacing:-1px;}
+.admin-link{color:#94a3b8;cursor:pointer;font-size:.9rem;transition:color .2s;}
+.admin-link:hover{color:var(--a);}
+.screen{display:none;}
+.active{display:block;}
+label{display:block;margin-bottom:6px;font-weight:600;color:var(--p);font-size:.9rem;}
+select,input[type=text],input[type=number],input[type=password]{width:100%;padding:10px 12px;margin-bottom:14px;border:1px solid #cbd5e1;border-radius:8px;font-size:.95rem;background:#fff;color:#1e293b;}
+select:focus,input:focus{border-color:var(--a);outline:none;}
+.btn{padding:11px 18px;border:none;border-radius:8px;font-size:.95rem;font-weight:600;color:#fff;cursor:pointer;transition:all .2s;display:inline-block;}
+.btn:hover{opacity:.88;}
+.btn-blue{background:var(--a);}
+.btn-green{background:var(--s);}
+.btn-gray{background:#64748b;}
+.btn-red{background:var(--d);}
+.btn-orange{background:var(--w);}
+.btn-purple{background:#7c3aed;}
+.btn-full{width:100%;}
+.btn-sm{padding:6px 12px;font-size:.82rem;}
+.btn-outline{background:transparent;border:1px solid #cbd5e1;color:#475569;}
+.badge{padding:3px 10px;border-radius:20px;font-size:.8rem;font-weight:600;color:#fff;display:inline-block;}
+.bg-blue{background:var(--a);}
+.bg-green{background:var(--s);}
+.bg-gray{background:#64748b;}
+.bg-red{background:var(--d);}
+.bg-amber{background:var(--w);}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+.table-wrap{overflow-x:auto;border:1px solid var(--br);border-radius:8px;margin-top:10px;}
+table{width:100%;border-collapse:collapse;font-size:.9rem;}
+th,td{padding:8px 10px;text-align:center;border-bottom:1px solid #f1f5f9;}
+th{background:#f8fafc;font-weight:600;color:var(--p);border-bottom:2px solid #e2e8f0;}
+.scenario-box{background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin-bottom:14px;font-size:.9rem;line-height:1.7;max-height:200px;overflow-y:auto;color:#1e3a5f;}
+.q-card{background:#fff;border:1px solid var(--br);border-radius:10px;padding:16px;margin-bottom:12px;}
+.q-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid #f1f5f9;}
+.q-title{font-size:1rem;font-weight:600;color:#0f172a;}
+.q-weight{font-size:.78rem;background:#334155;color:#fff;padding:3px 8px;border-radius:4px;}
+.q-desc{font-size:.88rem;font-weight:500;color:#1e3a5f;background:#f0f4f8;padding:10px 12px;border-left:3px solid var(--p);border-radius:0 6px 6px 0;margin-bottom:12px;line-height:1.5;}
+.likert{display:flex;gap:6px;}
+.lk-opt{flex:1;text-align:center;}
+.lk-opt input[type=radio]{display:none;}
+.lk-label{display:block;padding:8px 4px;border:1px solid #e2e8f0;border-radius:6px;cursor:pointer;font-size:.8rem;line-height:1.3;transition:all .15s;background:#fafafa;}
+.lk-opt input[type=radio]:checked+.lk-label{background:var(--d);color:#fff;border-color:var(--d);}
+.lk-label:hover{background:#fee2e2;border-color:var(--d);}
+.score-num{font-size:.95rem;font-weight:600;margin-bottom:4px;}
+.team-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:16px;}
+.team-card{border-radius:10px;padding:14px 10px;text-align:center;cursor:pointer;border:2px solid transparent;transition:all .2s;}
+.team-card:hover{transform:translateY(-2px);}
+.team-card.status-done{background:#f0fdf4;border-color:#86efac;}
+.team-card.status-progress{background:#fffbeb;border-color:#fcd34d;}
+.team-card.status-empty{background:#f8fafc;border-color:#e2e8f0;}
+.team-card.selected{border-color:var(--a)!important;}
+.card-icon{font-size:1.5rem;margin-bottom:4px;}
+.card-name{font-weight:600;font-size:.95rem;color:var(--p);}
+.card-info{font-size:.78rem;color:#64748b;margin-top:4px;line-height:1.6;}
+.pareto-bar-wrap{margin-bottom:8px;}
+.pareto-bar-label{display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:2px;}
+.pareto-bar-bg{background:#f1f5f9;border-radius:4px;height:18px;overflow:hidden;}
+.pareto-bar-fill{height:100%;border-radius:4px;transition:width .6s ease;}
+.bar-in80{background:#dc2626;}
+.bar-out80{background:#94a3b8;}
+.cumulative-line{height:3px;background:linear-gradient(to right,#2563eb,#7c3aed);border-radius:2px;margin:10px 0;}
+.error-banner{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;color:#991b1b;font-size:.9rem;text-align:center;margin-bottom:16px;}
+.session-item{display:flex;justify-content:space-between;align-items:center;padding:10px;border-bottom:1px solid #f1f5f9;font-size:.88rem;}
+.danger-zone{margin-top:24px;padding:16px;border:2px dashed var(--d);border-radius:12px;background:#fef2f2;text-align:center;}
+.progress-strip{background:#e0f2fe;border-radius:6px;padding:10px 14px;font-size:.88rem;color:#0c4a6e;margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;}
+.answer-key-box{background:#fefce8;border:1px solid #fde047;border-radius:8px;padding:14px;margin-top:12px;font-size:.88rem;}
+.answer-key-box .ak-item{display:flex;align-items:flex-start;gap:6px;margin-bottom:6px;}
+.match-badge{display:inline-block;padding:2px 7px;border-radius:4px;font-size:.78rem;font-weight:600;}
+.match-hit{background:#dcfce7;color:#166534;}
+.match-miss{background:#fee2e2;color:#991b1b;}
+@media(max-width:600px){.grid2{grid-template-columns:1fr;}.likert{flex-wrap:wrap;}.lk-opt{min-width:45%;}h1{font-size:1.3rem;}}
+</style>
+
+<div class="container">
+  <div id="errorBanner" class="error-banner" style="display:none;">⚠️ 서버 연결 실패. 네트워크를 확인하거나 관리자에게 문의하세요.</div>
+  <div class="header-top">
+    <h1 id="appTitle">휴먼에러 헌팅 시뮬레이션</h1>
+    <span class="admin-link" onclick="goAdmin()">⚙️ 관리자 모드</span>
+  </div>
+
+  <!-- ===== 관리자 화면 ===== -->
+  <div id="adminScreen" class="screen">
+    <div id="adminLogin" class="card" style="max-width:400px;margin:30px auto;text-align:center;">
+      <h3 style="margin-bottom:16px;color:var(--p);">관리자 로그인</h3>
+      <input type="password" id="adminPw" placeholder="비밀번호">
+      <button class="btn btn-blue btn-full" onclick="checkAdmin()">로그인</button>
+      <button class="btn btn-outline btn-full" style="margin-top:8px;" onclick="showScreen('joinScreen')">돌아가기</button>
+    </div>
+    <div id="adminPanel" style="display:none;">
+      <div style="text-align:right;margin-bottom:12px;">
+        <button class="btn btn-outline btn-sm" onclick="showScreen('joinScreen')">관리자 종료</button>
+      </div>
+      <div class="grid2">
+        <div class="card" style="margin:0;border-left:4px solid var(--a);">
+          <h4 style="color:var(--a);margin-bottom:14px;">교과과정 및 팀 설정</h4>
+          <label>과정명</label>
+          <input type="text" id="newCourseNm" placeholder="예: 2024_안전교육1차">
+          <label>팀 수</label>
+          <input type="number" id="newTeamCnt" value="6" min="1" max="20">
+          <label>사고 시나리오</label>
+          <select id="newScenario">
+            <option value="con1">건설1 — 비계 해체 추락 아차사고</option>
+            <option value="con2">건설2 — 타워크레인 자재 충돌</option>
+            <option value="mfg1">제조1 — 포장설비 끼임 사고</option>
+            <option value="mfg2">제조2 — 화학플랜트 밸브 오조작</option>
+            <option value="mfg3">제조3 — 조립라인 이물질·비상대응 실패</option>
+          </select>
+          <label>업종 진단 유형</label>
+          <select id="newIndustry">
+            <option value="construction">건설업 (Takagi 12요인)</option>
+            <option value="manufacturing">제조업 (Takagi 12요인 반영)</option>
+            <option value="healthcare">의료서비스업 (Dupont 12요인)</option>
+          </select>
+          <button class="btn btn-blue btn-full" onclick="addCourse()">과정 생성</button>
+          <div style="margin-top:12px;max-height:180px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;" id="courseListAdmin"></div>
+        </div>
+        <div class="card" style="margin:0;border-left:4px solid var(--w);display:flex;flex-direction:column;justify-content:center;text-align:center;">
+          <h4 style="color:var(--w);margin-bottom:14px;">결과 분석 센터</h4>
+          <div style="display:flex;flex-direction:column;gap:10px;align-items:center;">
+            <button class="btn btn-purple" style="width:85%;" onclick="goDashboard()">팀별 응답 현황판</button>
+            <button class="btn btn-green" style="width:85%;" onclick="goAllResult()">전체 파레토 결과 분석</button>
+            <button class="btn btn-gray" style="width:85%;" onclick="loadAdminData()">전체 데이터 조회/삭제</button>
+          </div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:16px;border-left:4px solid #0891b2;">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <h4 style="color:#0891b2;">실시간 데이터 관리</h4>
+        </div>
+        <div id="adminDataList"><p style="color:#94a3b8;font-size:.9rem;text-align:center;padding:16px;">상단 조회 버튼을 눌러 데이터를 확인하세요.</p></div>
+      </div>
+      <div class="danger-zone">
+        <h4 style="color:var(--d);margin-bottom:8px;">DB 초기화</h4>
+        <p style="font-size:.88rem;color:#991b1b;margin-bottom:12px;">모든 과정과 응답 데이터를 영구 삭제합니다.</p>
+        <button class="btn btn-red" onclick="deleteAll()">모든 DB 데이터 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 참가자 입장 화면 ===== -->
+  <div id="joinScreen" class="screen active">
+    <div class="card" style="max-width:480px;margin:40px auto;text-align:center;">
+      <h3 style="margin-bottom:6px;color:var(--p);">참가자 입장</h3>
+      <p style="color:#64748b;font-size:.9rem;margin-bottom:20px;">관리자가 개설한 과정을 선택하세요.</p>
+      <div style="text-align:left;">
+        <label>교과과정</label>
+        <select id="userCourseSelect" onchange="onCourseChange()">
+          <option value="">목록 불러오는 중...</option>
+        </select>
+        <label>소속 팀</label>
+        <select id="userTeamSelect">
+          <option value="">과정을 먼저 선택하세요</option>
+        </select>
+      </div>
+      <button class="btn btn-blue btn-full" style="margin-top:10px;" onclick="enterSim()">시뮬레이션 입장</button>
+    </div>
+  </div>
+
+  <!-- ===== 설문 화면 ===== -->
+  <div id="surveyScreen" class="screen">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;">
+        <div>
+          <h3 id="surveyTitle" style="color:var(--p);"></h3>
+          <span id="surveyBadge" class="badge bg-blue" style="margin-top:4px;">설문 진행 중</span>
+        </div>
+        <div id="progressInfo" class="badge bg-gray"></div>
+      </div>
+      <div class="scenario-box" id="scenarioText"></div>
+      <div style="background:#fff7ed;padding:12px 14px;border-radius:8px;border-left:3px solid var(--w);font-size:.87rem;color:#78350f;margin-bottom:14px;line-height:1.6;">
+        <strong>[안내]</strong> 아래 12가지 인적 요인이 이 사고에 얼마나 기여했는지 평가해 주세요.<br>
+        1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--d);font-weight:600;">수정 불가 — 꼼꼼히 확인 후 제출하세요.</span>
+      </div>
+      <div id="progressBar" class="progress-strip">
+        <span>응답 완료: <strong id="answeredCnt">0</strong> / 12</span>
+        <span id="progressPct">0%</span>
+      </div>
+      <div id="questionList"></div>
+      <div style="display:flex;gap:10px;margin-top:16px;">
+        <button class="btn btn-red btn-full" onclick="submitSurvey()">설문 제출</button>
+        <button class="btn btn-outline" onclick="showScreen('joinScreen')">취소</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 제출 완료 화면 ===== -->
+  <div id="doneScreen" class="screen">
+    <div class="card" style="text-align:center;padding:50px 20px;">
+      <div style="font-size:2.5rem;margin-bottom:14px;">✅</div>
+      <h2 style="color:var(--s);">제출 완료</h2>
+      <p style="color:#475569;margin-top:8px;">응답이 안전하게 저장되었습니다.<br>강사의 안내를 기다려주세요.</p>
+      <button class="btn btn-outline btn-sm" style="margin-top:28px;" onclick="showScreen('joinScreen')">처음으로</button>
+    </div>
+  </div>
+
+  <!-- ===== 현황판 화면 ===== -->
+  <div id="dashScreen" class="screen">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="color:var(--p);">팀별 응답 현황판</h3>
+        <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+      </div>
+      <div style="background:#f8fafc;padding:12px;border-radius:8px;margin-bottom:14px;">
+        <label style="margin-bottom:4px;font-size:.82rem;">교과과정 선택</label>
+        <select id="dashCourseSelect" onchange="onDashCourseChange()" style="margin:0;"></select>
+      </div>
+      <div id="dashTeamCards"><p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p></div>
+      <div id="dashDetail" style="display:none;border-top:2px solid var(--br);padding-top:14px;margin-top:8px;">
+        <div id="dashDetailTitle" style="font-weight:600;color:var(--p);margin-bottom:10px;font-size:.95rem;"></div>
+        <div id="dashContent" class="table-wrap"></div>
+        <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-orange btn-sm" id="closeSurveyBtn" onclick="closeSurveyForTeam()" style="display:none;">이 팀 설문 마감</button>
+          <button class="btn btn-red btn-sm" id="closeAllBtn" onclick="closeAllSurveys()" style="display:none;">전체 설문 마감</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== 파레토 결과 화면 ===== -->
+  <div id="resultScreen" class="screen">
+    <div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+        <h3 style="color:var(--p);">파레토 분석 결과</h3>
+        <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+      </div>
+      <div style="background:#eff6ff;padding:12px;border-radius:8px;margin-bottom:14px;border:1px solid #bfdbfe;">
+        <label style="font-size:.85rem;margin-bottom:4px;">분석할 교과과정</label>
+        <select id="resultCourseSelect" onchange="loadResultData()" style="margin:0;color:var(--a);font-weight:600;"></select>
+      </div>
+      <div id="resultContent"><p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택하면 분석 결과가 표시됩니다.</p></div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, collection, getDocs, query, where }
+  from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+import { FIREBASE_CONFIG, ADMIN_PASSWORD } from "./secrets.js";
+
+let app, db;
+try { app = initializeApp(FIREBASE_CONFIG); db = getFirestore(app); }
+catch(e){ document.getElementById('errorBanner').style.display='block'; }
+
+const ADMIN_PW = ADMIN_PASSWORD;
+
+const SCENARIOS = {
+  con1:{
+    label:"건설1 — 비계 해체 추락 아차사고",
+    industry:"construction",
+    text:`[건설업 사례 1] 비계 해체 작업 중 추락 아차사고\n\n장마철 오후 4시, 15층 규모 주상복합 건설 현장. 기상 악화를 우려한 현장 소장이 무전으로 "비 오기 전에 외부 비계 해체 작업 빨리 마무리합시다!"라고 강하게 독촉했습니다.\n\n오늘 처음 배치된 일용직 노동자 최씨(62세)는 이 현장 구조에 전혀 익숙하지 않았습니다. 10층 높이에서 안전대가 계속 걸리적거리자, 재촉하는 무전 소리와 굵어지는 빗방울에 쫓긴 최씨는 "30분만 속도를 내면 끝나는데..."라며 안전대 고리 체결을 임의로 생략했습니다. 그 순간 빗물에 젖은 발판이 미끄러져 10층 허공으로 추락, 안전방망에 걸려 목숨은 건졌으나 전신 골절상을 입었습니다.`,
+    answer:["지름길/생략 본능","상황적 행동 본능","무지 / 경험부족"]
+  },
+  con2:{
+    label:"건설2 — 타워크레인 자재 충돌",
+    industry:"construction",
+    text:`[건설업 사례 2] 타워크레인 자재 인양 중 충돌 사고\n\n오전 11시, 대규모 지하 주차장 골조 공사 현장. 크레인 기사 김씨는 6시부터 5시간 연속 고강도 작업으로 주의력이 극도로 저하된 상태였습니다.\n\n하역 지점은 사각지대였고, 베테랑 신호수가 연차를 내어 언어 소통이 어려운 외국인 근로자 A씨가 임시 배치되었습니다. A씨는 수톤의 철근이 내려오자 당황하여 "오, 오! 이쪽!"이라는 불명확한 지시만 외쳤고, 피로로 판단력이 둔화된 김씨는 이를 잘못 해석해 붐대를 반대 방향으로 스윙했습니다. 철근 다발이 양생 중인 기둥을 강타하며 구조물이 붕괴되었습니다.`,
+    answer:["의사소통/전달 부족","피로","무지 / 경험부족","착각"]
+  },
+  mfg1:{
+    label:"제조1 — 포장설비 끼임 사고",
+    industry:"manufacturing",
+    text:`[제조업 사례 1] 포장 설비 끼임(협착) 사고\n\n자동화 포장 라인. 공압 실린더 센서에 먼지가 끼어 하루에도 수차례 설비가 정지되는 문제가 반복되었습니다. 매뉴얼대로 메인 전원을 끄면 복구에 10분이 걸렸고, 작업자들은 점검구 안전 인터락 센서에 절연 테이프를 붙여 무력화하는 편법을 수개월째 사용해왔습니다. 관리자(반장)도 이를 묵인했습니다.\n\n오후 2시, 설비가 또 멈추자 작업자 박씨는 LOTO를 생략하고 문을 열어 손을 집어넣었습니다. 테이프로 무력화된 센서가 손을 '박스'로 인식해 설비가 재가동되었고, 팔이 기계에 끼이는 중상을 입었습니다.`,
+    answer:["지름길/생략 본능","위험 무시 (익숙함)","집단 결함"]
+  },
+  mfg2:{
+    label:"제조2 — 화학플랜트 밸브 오조작",
+    industry:"manufacturing",
+    text:`[제조업 사례 2] 화학 플랜트 밸브 오조작 누출 사고\n\n야간 교대 근무자 이대리는 심한 감기 몸살로 정량 이상의 감기약을 복용하고 출근했습니다. 인지 능력과 반응 속도가 현저히 저하된 상태였습니다. 제어실 HMI 화면은 밸브 아이콘이 빽빽하게 배치되어 있어 맑은 정신에도 착각을 유발하기 쉬운 구조였습니다.\n\n교대 인수인계 시 전임자는 V-102 밸브가 열려있다는 사실을 구두로만 전달하고 작업일지에는 기록하지 않았습니다. 이대리는 약기운에 흐릿한 눈으로 주입 밸브 V-103 대신 바로 옆의 배출 밸브 V-108을 클릭했고, 두 밸브가 동시에 열리며 유해화학물질이 대량 누출되었습니다.`,
+    answer:["심신기능 저하","착각","의사소통/전달 부족"]
+  },
+  mfg3:{
+    label:"제조3 — 조립라인 이물질·비상대응 실패",
+    industry:"manufacturing",
+    text:`[제조업 사례 3] 조립 라인 이물질 혼입 및 비상대응 실패\n\n연말 생산 목표 달성을 위해 컨베이어 속도가 15% 증가했습니다. 작업자 정씨는 8시간 동안 볼트를 끼우는 단순 반복 작업을 해왔고, 오후 4시가 되자 의식과 주의력이 완전히 이탈했습니다. 집중력을 잃은 순간 볼트 하나가 기계 내부로 굴러 들어갔습니다.\n\n정씨는 비상정지 버튼을 눌러야 했지만, "라인을 세우면 반장에게 질책받을 것"이라는 공포심에 버튼을 누르지 못했습니다. 당혹감에 빠진 정씨는 가동 중인 설비에 집게를 넣어 볼트를 꺼내려다 로봇 암이 오작동하며 안면부를 강타했습니다.`,
+    answer:["상황적 행동 본능","의식저하 (단조로움)","지름길/생략 본능","패닉 (당황, 놀람)"]
+  }
+};
+
+const QUESTIONS = {
+  construction:[
+    {factor:"무지 / 경험부족",desc:"해당 현장 작업에 대한 기술 숙련도 및 사전 안전교육 부족",weight:1.0,anchors:["전문(비정상 대처 가능)","숙련(3년↑ 경험)","보통(1~3년/OJT 이수)","위험(6개월↓ 경험)","매우 심각(첫 투입/OJT 전무)"]},
+    {factor:"위험 무시 (익숙함)",desc:"안전고리 체결 등 필수 수칙을 익숙함으로 고의 누락",weight:2.0,anchors:["안전(주변 위험까지 통제)","양호(상시 경계)","보통(표준 수칙 준수)","위험(과소평가 빈번)","매우 심각(안전구 미착용 상시)"]},
+    {factor:"주의력 부족",desc:"장비 이동·낙하물 등 주변 상황 변화에 대한 경계심 부족",weight:1.0,anchors:["안전(반경 내 완벽 감시)","양호(높은 집중력)","보통(일반적 집중도)","위험(자주 분산됨)","매우 심각(위험 전혀 인지 불가)"]},
+    {factor:"의사소통/전달 부족",desc:"TBM 미실시 및 작업 전 위험 요인 미공유",weight:1.5,anchors:["안전(다공종 간 완벽 조율)","양호(양방향 소통 원활)","보통(적정 수준 공유)","위험(형식적 조회)","매우 심각(TBM 미실시/미전달)"]},
+    {factor:"집단 결함",desc:"안전보다 속도를 중시하는 잘못된 현장 관행에 휩쓸림",weight:1.0,anchors:["안전(잘못된 관행 거부/시정)","양호(독자적 안전 판단)","보통(원칙 유지 노력)","위험(대세에 쉽게 휩쓸림)","매우 심각(안전 규정 위반 동조)"]},
+    {factor:"지름길/생략 본능",desc:"공기 단축을 위해 표준 작업 절차를 임의로 건너뜀",weight:2.5,anchors:["안전(체크리스트 교차 점검)","양호(절차 엄격 준수)","보통(최대한 준수)","위험(자주 생략)","매우 심각(절차 무시 일상화)"]},
+    {factor:"상황적 행동 본능",desc:"납기 압박·주변 분위기에서 충동적으로 판단하고 행동",weight:1.0,anchors:["안전(압박 속에도 냉철 판단)","양호(매뉴얼 중심 행동)","보통(상황에 따라 대처)","위험(분위기에 민감 반응)","매우 심각(충동적/위험 행동)"]},
+    {factor:"패닉 (당황, 놀람)",desc:"돌발 사고·장비 고장 등 비정상 상황 발생 시 대응 불가",weight:1.5,anchors:["안전(훈련 기반 즉각 조치)","양호(침착 유지/기본 조치)","보통(긴장 및 지시 대기)","위험(대처 늦어짐)","매우 심각(판단 정지/대피 실패)"]},
+    {factor:"착각",desc:"도면·계기판 등을 오인하거나 주변 상황을 잘못 판단",weight:1.0,anchors:["안전(에러 방지 시스템 완비)","양호(지시/도면 명확)","보통(일반적 판단 수준)","위험(자주 착각 유발)","매우 심각(오인 상시 유발)"]},
+    {factor:"심신기능 저하",desc:"질병·전날 음주 등으로 인한 육체적 작업 적합성 결여",weight:2.0,anchors:["안전(최상 신체 능력)","양호(건강 상태 양호)","보통(투입 문제 없음)","위험(기능 저하 체감)","매우 심각(고소 작업 절대 불가)"]},
+    {factor:"피로",desc:"과도한 잔업·폭염·수면 부족 등에 따른 육체적 탈진",weight:1.0,anchors:["안전(충분한 휴식 지원)","양호(적절한 휴게 보장)","보통(일상적 피로 수준)","위험(피로도 매우 높음)","매우 심각(탈진 직전)"]},
+    {factor:"의식저하 (단조로움)",desc:"단순 반복 작업 시 지루함으로 인한 경계심 상실",weight:1.0,anchors:["안전(상시 긴장 유지 시스템)","양호(교대/환기로 긴장 유지)","보통(일반적 주의력)","위험(집중 유지 어려움)","매우 심각(졸음 유발/의식 이탈)"]}
+  ],
+  manufacturing:[
+    {factor:"무지 / 경험부족",desc:"해당 설비 조작 경험 및 트러블슈팅 지식 부족",weight:1.0,anchors:["전문(트러블슈팅 전문)","숙련(3년↑ 공정 경험)","보통(기본 OJT 이수)","위험(6개월↓ 경험)","매우 심각(첫 운전/원리 전무)"]},
+    {factor:"위험 무시 (익숙함)",desc:"인터락 해제 등 안전 장치 무단 바이패스",weight:2.0,anchors:["안전(물리적·시스템 차단 완벽)","양호(설비 위험성 상시 경계)","보통(설비 방호 수칙 준수)","위험(안전 센서 가끔 무시)","매우 심각(인터락 상시 임의 해제)"]},
+    {factor:"주의력 부족",desc:"계기판 모니터링 시 중요 알람·이상 수치 인지 지연",weight:1.0,anchors:["안전(이상 징후 선제적 파악)","양호(모니터링 집중도 높음)","보통(일반적 관제)","위험(간헐적 오독)","매우 심각(중요 경보 지속 놓침)"]},
+    {factor:"의사소통/전달 부족",desc:"교대조 간 설비 트러블 이력 및 인수인계 누락",weight:1.5,anchors:["안전(전산화 이력 완벽 공유)","양호(명확한 정보 전달)","보통(작업일지 기반 인수인계)","위험(인수인계 일지 부실)","매우 심각(구두 전달 전무/누락)"]},
+    {factor:"집단 결함",desc:"불량품 축소 보고하거나 무리한 생산 강행 동조",weight:1.0,anchors:["안전(품질/안전 최우선)","양호(원칙 기반 독자 판단)","보통(개인 기준 불량 보고)","위험(생산 압박에 타협)","매우 심각(불량/위해요인 은폐 동조)"]},
+    {factor:"지름길/생략 본능",desc:"생산 수율 위해 세척·예열 시간 등 필수 공정 임의 축소",weight:2.5,anchors:["안전(Fool-proof 완비)","양호(표준 절차 엄격 준수)","보통(정해진 Recipe 준수)","위험(자주 공정 축소)","매우 심각(공정 단계 상시 생략)"]},
+    {factor:"상황적 행동 본능",desc:"납기 지연 압박 시 무리하게 설비 가동·수리 시도",weight:1.0,anchors:["안전(압박 속에서도 LOTO 준수)","양호(SOP 중심 행동)","보통(절차에 따른 조치)","위험(납기에 쫓겨 불안전 행동)","매우 심각(LOTO 미실시 즉각 개입)"]},
+    {factor:"패닉 (당황, 놀람)",desc:"유해물질 누출 등 비상사태 발생 시 비상정지(ESD) 실패",weight:1.5,anchors:["안전(훈련 기반 완벽 대응)","양호(침착한 설비 정지·대피)","보통(기본 비상 버튼 조작)","위험(초기 대응 지연)","매우 심각(ESD 누락/대피 불가)"]},
+    {factor:"착각",desc:"조작 스위치 배열 불량 등으로 밸브를 오조작할 가능성",weight:1.0,anchors:["안전(인간공학적 HMI 완비)","양호(버튼 식별 명확)","보통(일반적 설비 인터페이스)","위험(레이아웃 복잡/착각 유발)","매우 심각(오조작 매우 잦음)"]},
+    {factor:"심신기능 저하",desc:"음주·약물 복용 등으로 인한 조작 반응 속도 저하",weight:2.0,anchors:["안전(작업 전 헬스체크 완벽)","양호(신체 반응 양호)","보통(공정 운전 무리 없음)","위험(반응 속도 느림)","매우 심각(음주/약물 위험 설비 불가)"]},
+    {factor:"피로",desc:"야간 교대·연속 가동에 따른 조작원 시각적·육체적 피로",weight:1.0,anchors:["안전(자동화 보조로 피로 최소화)","양호(휴게 엄수/피로 관리)","보통(일반적 교대 피로)","위험(수면 부족/피로 누적)","매우 심각(계기판 모니터링 불가)"]},
+    {factor:"의식저하 (단조로움)",desc:"컨베이어 단순 검사 반복 시 무감각해져 불량 통과",weight:1.0,anchors:["안전(머신러닝 자동화 보조)","양호(교대/휴식으로 환기)","보통(일반적 집중력 유지)","위험(집중 저하/간헐적 불량 누락)","매우 심각(불량품 통과 빈발)"]}
+  ],
+  healthcare:[
+    {factor:"지식 부족 (Knowledge)",desc:"고위험 약물 지식 및 최신 프로토콜 숙지 상태 부족",weight:2.0,anchors:["완벽(타인 지도 가능)","우수(전문 지식 보유)","보통(5 Right 숙지)","부족(기본 지식 미흡)","매우 심각(약물 지식 전무)"]},
+    {factor:"안주 (Complacency)",desc:"반복 루틴 업무 시 재확인·검증 절차 누락",weight:1.0,anchors:["안전(시스템 검증 완벽)","양호(이중확인 철저)","보통(5 Right 준수)","위험(이중확인 가끔 생략)","매우 위험(교차확인 상시 누락)"]},
+    {factor:"혼란 (Distraction)",desc:"투약 중 알람·보호자 호출로 인한 주의 분산",weight:1.5,anchors:["안전(투약 전용 구역 완벽)","양호(집중 가능)","보통(통제 가능)","위험(잦은 방해)","매우 위험(업무 중단 심각)"]},
+    {factor:"의사소통 부족 (Communication)",desc:"구두 처방 오인 및 SBAR 인수인계 누락",weight:2.5,anchors:["완벽(Closed-loop 소통)","양호(명확한 SBAR)","보통(표준 인계 수행)","위험(지시 불명확)","매우 심각(SBAR 누락 심각)"]},
+    {factor:"팀워크 부족 (Teamwork)",desc:"바쁜 듀티 시 상호 지원 거부 및 다학제 협력 부재",weight:1.5,anchors:["완벽(역할 분담 완벽)","양호(유기적 협력)","보통(일반적 지원)","위험(개인 위주 업무)","매우 심각(업무 떠넘기기 심각)"]},
+    {factor:"잘못된 지침/규범 (Norms)",desc:"임상 현실과 맞지 않는 매뉴얼로 Workaround 발생",weight:1.0,anchors:["안전(최적화된 지침)","양호(최신화/접근성 우수)","보통(표준 지침 존재)","위험(지침 불완전)","매우 위험(워크어라운드 빈발)"]},
+    {factor:"압박 (Pressure)",desc:"중증 환자 과다 배정 및 응급 상황으로 인한 시간 촉박",weight:1.0,anchors:["안전(재평가 가능한 여유)","양호(시간 여유 있음)","보통(적정 업무량)","위험(시간에 쫓김)","매우 위험(필수 간호 턱없이 부족)"]},
+    {factor:"스트레스 (Stress)",desc:"보호자 클레임·감정 노동·중증 환자 간호에 따른 심리 부담",weight:1.0,anchors:["안전(심리적 안정감 완벽)","양호(스트레스 관리 가능)","보통(일반적 직무 스트레스)","위험(지속적 긴장)","매우 위험(극도의 Burnout)"]},
+    {factor:"인식 부족 (Awareness)",desc:"환자 상태 변화 조기 인지(Early Warning) 실패",weight:1.0,anchors:["안전(입체적 장악 및 예측)","양호(잠재 위험 사전 인지)","보통(주요 변화 인지)","위험(부분적 파악)","매우 위험(조기 인지 실패)"]},
+    {factor:"인적자원 부족 (Resources)",desc:"듀티별 간호사 수 부족 및 필수 의료 장비 부재",weight:1.0,anchors:["안전(예비 인력·장비 대기)","양호(원활한 지원)","보통(표준 배치)","위험(일시적 부족)","매우 위험(인력·장비 절대 부족)"]},
+    {factor:"피로 (Fatigue)",desc:"3교대·야간 연속 근무로 인한 간호 인지력·판단력 저하",weight:2.5,anchors:["안전(충분한 휴식 보장)","양호(적절한 오프 보장)","보통(일상적 교대 피로)","위험(만성 피로 누적)","매우 심각(투약 판단력 극심 저하)"]},
+    {factor:"자기 주장 부족 (Assertiveness)",desc:"처방 오류 의심 시 의사·수간호사에게 확인(Speak-up) 못함",weight:2.0,anchors:["안전(직급 무관 Speak-up 정착)","양호(오류 지적 가능)","보통(필요 시 발언)","위험(상급자 눈치)","매우 심각(명백한 오류에도 침묵)"]}
+  ]
+};
+
+let courseList=[], activeCourseList=[];
+let currentDashSess='', currentDashTeam='';
+let dashUnsubs={}, detailUnsub=null;
+
+function showScreen(id){
+  document.querySelectorAll('.screen').forEach(el=>el.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+window.showScreen=showScreen;
+
+window.onload=async()=>{
+  if(!db)return;
+  onSnapshot(doc(db,'settings','courses'),(snap)=>{
+    courseList=[]; activeCourseList=[];
+    if(snap.exists()){
+      courseList=snap.data().list||[];
+      activeCourseList=snap.data().activeList||[];
+    }
+    refreshSelects();
+    renderAdminCourseList();
+  });
+};
+
+function refreshSelects(){
+  const uEl=document.getElementById('userCourseSelect');
+  if(uEl){
+    const opts=activeCourseList.slice().reverse().map(c=>`<option value="${c}">${c}</option>`).join('');
+    uEl.innerHTML=`<option value="">과정을 선택하세요</option>${opts}`;
+  }
+  ['dashCourseSelect','resultCourseSelect'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    const opts=courseList.slice().reverse().map(c=>`<option value="${c}">${c}</option>`).join('');
+    el.innerHTML=`<option value="">선택...</option>${opts}`;
+  });
+}
+
+function renderAdminCourseList(){
+  const div=document.getElementById('courseListAdmin');
+  if(!div)return;
+  div.innerHTML=courseList.slice().reverse().map(c=>{
+    const chk=activeCourseList.includes(c)?'checked':'';
+    return`<div class="session-item">
+      <label style="margin:0;display:flex;align-items:center;cursor:pointer;font-weight:normal;color:#334155;font-size:.85rem;">
+        <input type="checkbox" ${chk} onchange="toggleActive('${c}',this.checked)" style="width:15px;height:15px;margin:0 7px 0 0;">
+        ${c}
+      </label>
+      <button class="btn btn-red btn-sm" onclick="deleteCourse('${c}')">삭제</button>
+    </div>`;
+  }).join('');
+}
+
+window.goAdmin=()=>showScreen('adminScreen');
+window.checkAdmin=()=>{
+  if(document.getElementById('adminPw').value===ADMIN_PW){
+    document.getElementById('adminLogin').style.display='none';
+    document.getElementById('adminPanel').style.display='block';
+  }else alert('비밀번호 불일치');
+};
+
+window.addCourse=async()=>{
+  const nm=document.getElementById('newCourseNm').value.trim();
+  const cnt=parseInt(document.getElementById('newTeamCnt').value)||6;
+  const scenario=document.getElementById('newScenario').value;
+  const industry=document.getElementById('newIndustry').value;
+  if(!nm)return alert('과정명을 입력하세요.');
+  await updateDoc(doc(db,'settings','courses'),{list:arrayUnion(nm),activeList:arrayUnion(nm)});
+  await setDoc(doc(db,'course_configs',nm),{teamCount:cnt,scenario,industry});
+  document.getElementById('newCourseNm').value='';
+  alert(`'${nm}' 과정이 생성되었습니다.`);
+};
+
+window.deleteCourse=async(nm)=>{
+  if(!confirm(`'${nm}' 과정을 삭제하시겠습니까?`))return;
+  await updateDoc(doc(db,'settings','courses'),{list:arrayRemove(nm),activeList:arrayRemove(nm)});
+  await deleteDoc(doc(db,'course_configs',nm));
+};
+
+window.toggleActive=async(nm,val)=>{
+  await updateDoc(doc(db,'settings','courses'),{activeList:val?arrayUnion(nm):arrayRemove(nm)});
+};
+
+window.onCourseChange=async()=>{
+  const sess=document.getElementById('userCourseSelect').value;
+  const tSel=document.getElementById('userTeamSelect');
+  tSel.innerHTML='<option value="">불러오는 중...</option>';
+  if(!sess)return;
+  let tCount=6;
+  try{const cfg=await getDoc(doc(db,'course_configs',sess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
+  tSel.innerHTML=Array.from({length:tCount},(_,i)=>`<option value="team_${i+1}">${i+1}팀</option>`).join('');
+};
+
+window.enterSim=async()=>{
+  const sessId=document.getElementById('userCourseSelect').value;
+  const tSel=document.getElementById('userTeamSelect');
+  const teamVal=tSel.value;
+  const teamText=tSel.options[tSel.selectedIndex]?.text||'';
+  if(!sessId||!teamVal)return alert('과정과 팀을 선택해주세요.');
+
+  let cfg={teamCount:6,scenario:'con1',industry:'construction'};
+  try{const c=await getDoc(doc(db,'course_configs',sessId));if(c.exists())cfg=c.data();}catch(e){}
+
+  const closed=await checkIfClosed(sessId,teamVal);
+  if(closed)return alert('이 팀의 설문은 마감되었습니다. 강사에게 문의하세요.');
+
+  sessionStorage.setItem('sim_sess',sessId);
+  sessionStorage.setItem('sim_team',teamVal);
+  sessionStorage.setItem('sim_teamText',teamText);
+  sessionStorage.setItem('sim_scenario',cfg.scenario||'con1');
+  sessionStorage.setItem('sim_industry',cfg.industry||'construction');
+
+  buildSurveyScreen(cfg.scenario||'con1',cfg.industry||'construction',teamText);
+  showScreen('surveyScreen');
+};
+
+async function checkIfClosed(sessId,teamId){
+  try{
+    const snap=await getDoc(doc(db,'sessions',sessId,'teams',teamId,'meta','status'));
+    return snap.exists()&&snap.data().closed===true;
+  }catch(e){return false;}
+}
+
+function buildSurveyScreen(scenarioKey,industryKey,teamText){
+  document.getElementById('surveyTitle').innerText=`${teamText} — 사고 원인 진단`;
+  const sc=SCENARIOS[scenarioKey];
+  document.getElementById('scenarioText').innerText=sc?sc.text:'시나리오 정보 없음';
+  const qs=QUESTIONS[industryKey]||QUESTIONS.construction;
+  let html='';
+  qs.forEach((q,i)=>{
+    let scales='';
+    [1,2,3,4,5].forEach((v,vi)=>{
+      scales+=`<div class="lk-opt">
+        <input type="radio" name="q${i}" id="q${i}_${v}" value="${v}" data-weight="${q.weight}" onchange="onAnswerChange()">
+        <label class="lk-label" for="q${i}_${v}">
+          <div class="score-num">${v}점</div>
+          <div style="font-size:.75rem;line-height:1.3;">${q.anchors[vi]}</div>
+        </label>
+      </div>`;
+    });
+    html+=`<div class="q-card">
+      <div class="q-header">
+        <div class="q-title">${i+1}. ${q.factor}</div>
+        <div class="q-weight">가중치 ${q.weight}</div>
+      </div>
+      <div class="q-desc">${q.desc}</div>
+      <div class="likert">${scales}</div>
+    </div>`;
+  });
+  document.getElementById('questionList').innerHTML=html;
+  document.getElementById('answeredCnt').innerText='0';
+  document.getElementById('progressPct').innerText='0%';
+}
+
+window.onAnswerChange=()=>{
+  const total=12;
+  const done=document.querySelectorAll('input[type=radio]:checked').length;
+  document.getElementById('answeredCnt').innerText=done;
+  document.getElementById('progressPct').innerText=Math.round(done/total*100)+'%';
+};
+
+window.submitSurvey=async()=>{
+  const sessId=sessionStorage.getItem('sim_sess');
+  const teamId=sessionStorage.getItem('sim_team');
+  const industryKey=sessionStorage.getItem('sim_industry');
+  const qs=QUESTIONS[industryKey]||QUESTIONS.construction;
+  let scores=[],err=false;
+  qs.forEach((_,i)=>{
+    const r=document.querySelector(`input[name="q${i}"]:checked`);
+    if(!r)err=true;
+    else scores.push({factor:qs[i].factor,score:parseInt(r.value),weight:qs[i].weight,weighted:parseInt(r.value)*qs[i].weight});
+  });
+  if(err)return alert('모든 항목에 응답해주세요. (12문항 전체)');
+  try{
+    await addDoc(collection(db,'sessions',sessId,'teams',teamId,'submissions'),{scores,timestamp:new Date(),industry:industryKey});
+    showScreen('doneScreen');
+  }catch(e){alert('전송 실패: '+e.message);}
+};
+
+window.goDashboard=()=>{
+  refreshSelects();
+  Object.values(dashUnsubs).forEach(f=>f());
+  dashUnsubs={};
+  if(detailUnsub){detailUnsub();detailUnsub=null;}
+  document.getElementById('dashTeamCards').innerHTML='<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>';
+  document.getElementById('dashDetail').style.display='none';
+  document.getElementById('dashCourseSelect').value='';
+  showScreen('dashScreen');
+};
+
+window.onDashCourseChange=async()=>{
+  const sess=document.getElementById('dashCourseSelect').value;
+  currentDashSess=sess;
+  Object.values(dashUnsubs).forEach(f=>f()); dashUnsubs={};
+  if(detailUnsub){detailUnsub();detailUnsub=null;}
+  document.getElementById('dashDetail').style.display='none';
+  if(!sess){document.getElementById('dashTeamCards').innerHTML='<p style="text-align:center;padding:24px;color:#94a3b8;">과정을 선택하면 현황이 표시됩니다.</p>';return;}
+  let tCount=6;
+  try{const cfg=await getDoc(doc(db,'course_configs',sess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
+  document.getElementById('dashTeamCards').innerHTML=`<div class="team-grid">${Array.from({length:tCount},(_,i)=>`
+    <div class="team-card status-empty" id="card_team_${i+1}" onclick="clickTeamCard('${sess}','team_${i+1}','${i+1}팀')">
+      <div class="card-icon">⏳</div>
+      <div class="card-name">${i+1}팀</div>
+      <div class="card-info">로딩 중...</div>
+    </div>`).join('')}</div>`;
+  for(let i=1;i<=tCount;i++){
+    const tid=`team_${i}`;
+    dashUnsubs[tid]=onSnapshot(collection(db,'sessions',sess,'teams',tid,'submissions'),snap=>{
+      updateTeamCard(tid,i,snap);
+    });
+  }
+};
+
+function updateTeamCard(teamId,num,snap){
+  const card=document.getElementById(`card_${teamId}`);
+  if(!card)return;
+  const cnt=snap.docs.length;
+  let statusClass,icon;
+  if(cnt>4){statusClass='status-done';icon='✅';}
+  else if(cnt>0){statusClass='status-progress';icon='✏️';}
+  else{statusClass='status-empty';icon='⏳';}
+  const sel=card.classList.contains('selected');
+  card.className=`team-card ${statusClass}${sel?' selected':''}`;
+  card.innerHTML=`<div class="card-icon">${icon}</div><div class="card-name">${num}팀</div><div class="card-info">${cnt}명 응답</div>`;
+}
+
+window.clickTeamCard=(sessId,teamId,teamName)=>{
+  currentDashTeam=teamId;
+  document.querySelectorAll('.team-card').forEach(c=>c.classList.remove('selected'));
+  const card=document.getElementById(`card_${teamId}`);
+  if(card)card.classList.add('selected');
+  document.getElementById('dashDetailTitle').innerText=`${teamName} 응답 현황`;
+  document.getElementById('dashDetail').style.display='block';
+  document.getElementById('closeSurveyBtn').style.display='inline-block';
+  document.getElementById('closeAllBtn').style.display='inline-block';
+  if(detailUnsub)detailUnsub();
+  detailUnsub=onSnapshot(collection(db,'sessions',sessId,'teams',teamId,'submissions'),snap=>{
+    document.getElementById('dashContent').innerHTML=`<p style="padding:12px 14px;color:#475569;font-size:.9rem;">${snap.docs.length}명 응답 완료. 파레토 분석은 결과 화면에서 확인하세요.</p>`;
+  });
+};
+
+window.closeSurveyForTeam=async()=>{
+  if(!currentDashSess||!currentDashTeam)return;
+  if(!confirm(`${currentDashTeam}의 설문을 마감하시겠습니까? 이후 응답이 차단됩니다.`))return;
+  await setDoc(doc(db,'sessions',currentDashSess,'teams',currentDashTeam,'meta','status'),{closed:true,closedAt:new Date()});
+  alert('마감되었습니다.');
+};
+
+window.closeAllSurveys=async()=>{
+  if(!currentDashSess)return;
+  if(!confirm('이 과정의 모든 팀 설문을 마감하시겠습니까?'))return;
+  let tCount=6;
+  try{const cfg=await getDoc(doc(db,'course_configs',currentDashSess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
+  const batch=[];
+  for(let i=1;i<=tCount;i++){
+    batch.push(setDoc(doc(db,'sessions',currentDashSess,'teams',`team_${i}`,'meta','status'),{closed:true,closedAt:new Date()}));
+  }
+  await Promise.all(batch);
+  alert('전체 팀 설문이 마감되었습니다.');
+};
+
+window.goAllResult=()=>{
+  refreshSelects();
+  document.getElementById('resultCourseSelect').value='';
+  document.getElementById('resultContent').innerHTML='<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택하면 분석 결과가 표시됩니다.</p>';
+  showScreen('resultScreen');
+};
+
+window.loadResultData=async()=>{
+  const sessId=document.getElementById('resultCourseSelect').value;
+  const div=document.getElementById('resultContent');
+  if(!sessId){div.innerHTML='<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>';return;}
+  div.innerHTML='<p style="text-align:center;padding:20px;color:#64748b;">분석 중...</p>';
+  let cfg={teamCount:6,scenario:'con1',industry:'construction'};
+  try{const c=await getDoc(doc(db,'course_configs',sessId));if(c.exists())cfg=c.data();}catch(e){}
+  const qs=QUESTIONS[cfg.industry||'construction'];
+  const factorNames=qs.map(q=>q.factor);
+  const weights=qs.map(q=>q.weight);
+  const sc=SCENARIOS[cfg.scenario||'con1'];
+  const answerKeys=sc?sc.answer:[];
+
+  let teamResults=[];
+  for(let i=1;i<=cfg.teamCount;i++){
+    const tid=`team_${i}`;
+    const snap=await getDocs(collection(db,'sessions',sessId,'teams',tid,'submissions'));
+    if(snap.empty){teamResults.push({name:`${i}팀`,cnt:0,sums:null});continue;}
+    const sums=new Array(12).fill(0);
+    const cnt=snap.docs.length;
+    snap.forEach(d=>{
+      const s=d.data().scores;
+      if(s&&Array.isArray(s)){s.forEach((item,idx)=>{if(idx<12)sums[idx]+=(item.weighted||item.score||0);});}
+    });
+    teamResults.push({name:`${i}팀`,cnt,sums});
+  }
+
+  let html=`<div style="background:#fef9ec;border:1px solid #fde68a;border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:.88rem;">
+    <strong>시나리오:</strong> ${sc?sc.label:''}
+    <span style="margin-left:12px;"><strong>정답 요인:</strong> ${answerKeys.join(' / ')}</span>
+  </div>`;
+
+  teamResults.forEach(t=>{
+    if(!t.sums){
+      html+=`<div class="card" style="margin-bottom:12px;"><strong>${t.name}</strong> — 응답 없음</div>`;
+      return;
+    }
+    const indexed=factorNames.map((nm,i)=>({name:nm,val:t.sums[i],weight:weights[i]}));
+    indexed.sort((a,b)=>b.val-a.val);
+    const total=indexed.reduce((s,x)=>s+x.val,0);
+    let cum=0, paretoIdx=-1;
+    for(let i=0;i<indexed.length;i++){
+      cum+=indexed[i].val;
+      if(cum/total>=0.80&&paretoIdx===-1)paretoIdx=i;
+    }
+    const topItems=indexed.slice(0,paretoIdx+1);
+    const matchCnt=topItems.filter(x=>answerKeys.includes(x.name)).length;
+    const matchRate=answerKeys.length>0?Math.round(matchCnt/answerKeys.length*100):0;
+
+    let barHtml='';
+    let cumPct=0;
+    indexed.forEach((item,idx)=>{
+      const pct=total>0?Math.round(item.val/total*100):0;
+      cumPct+=pct;
+      const inPareto=idx<=paretoIdx;
+      const isAnswer=answerKeys.includes(item.name);
+      barHtml+=`<div class="pareto-bar-wrap">
+        <div class="pareto-bar-label">
+          <span style="font-weight:${inPareto?600:400};color:${inPareto?'#dc2626':'#64748b'};">${item.name}${isAnswer?' ★':''}</span>
+          <span style="font-size:.78rem;color:#94a3b8;">${pct}% (누적 ${cumPct>100?100:cumPct}%)</span>
+        </div>
+        <div class="pareto-bar-bg"><div class="pareto-bar-fill ${inPareto?'bar-in80':'bar-out80'}" style="width:${pct}%;"></div></div>
+      </div>`;
+    });
+
+    html+=`<div class="card" style="margin-bottom:14px;">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <strong style="font-size:1rem;color:var(--p);">${t.name}</strong>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <span class="badge bg-gray">${t.cnt}명 응답</span>
+          <span class="badge ${matchRate>=75?'bg-green':matchRate>=50?'bg-amber':'bg-red'}">${matchRate}% 일치</span>
+        </div>
+      </div>
+      <div style="margin-bottom:8px;font-size:.82rem;color:#475569;">★ = 강사 정답 요인 &nbsp;|&nbsp; <span style="color:var(--d);">붉은 바</span> = 파레토 80% 구간</div>
+      ${barHtml}
+      <div class="cumulative-line"></div>
+      <div class="answer-key-box">
+        <strong style="font-size:.85rem;color:#78350f;">팀 파레토 Top ${paretoIdx+1} 요인</strong>
+        <div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:6px;">
+          ${topItems.map(x=>`<span class="match-badge ${answerKeys.includes(x.name)?'match-hit':'match-miss'}">${x.name}</span>`).join('')}
+        </div>
+      </div>
+    </div>`;
+  });
+
+  div.innerHTML=html;
+};
+
+window.loadAdminData=async()=>{
+  const div=document.getElementById('adminDataList');
+  div.innerHTML='<p style="text-align:center;padding:12px;color:#64748b;font-size:.88rem;">스캔 중...</p>';
+  let rows=[];
+  for(const sess of courseList){
+    let tCount=6;
+    try{const cfg=await getDoc(doc(db,'course_configs',sess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
+    for(let i=1;i<=tCount;i++){
+      const snap=await getDocs(collection(db,'sessions',sess,'teams',`team_${i}`,'submissions'));
+      snap.forEach(d=>rows.push({sess,team:`${i}팀`,teamId:`team_${i}`,id:d.id,ts:d.data().timestamp}));
+    }
+  }
+  if(!rows.length){div.innerHTML='<p style="text-align:center;padding:12px;color:#94a3b8;font-size:.88rem;">데이터 없음</p>';return;}
+  div.innerHTML=`<table style="font-size:.82rem;"><thead><tr><th>과정</th><th>팀</th><th>제출 시각</th><th>삭제</th></tr></thead><tbody>${
+    rows.map(r=>`<tr><td>${r.sess}</td><td>${r.team}</td><td style="font-size:.78rem;">${r.ts?new Date(r.ts.seconds*1000).toLocaleString('ko-KR'):'-'}</td><td><button class="btn btn-red btn-sm" onclick="delDoc('${r.sess}','${r.teamId}','${r.id}')">삭제</button></td></tr>`).join('')
+  }</tbody></table>`;
+};
+
+window.delDoc=async(sess,teamId,docId)=>{
+  if(!confirm('삭제하시겠습니까?'))return;
+  await deleteDoc(doc(db,'sessions',sess,'teams',teamId,'submissions',docId));
+  loadAdminData();
+};
+
+window.deleteAll=async()=>{
+  if(!confirm('⚠️ 모든 과정과 응답 데이터를 영구 삭제합니다!'))return;
+  if(!confirm('마지막 확인: 정말 삭제하시겠습니까?'))return;
+  for(const sess of courseList){
+    let tCount=6;
+    try{const cfg=await getDoc(doc(db,'course_configs',sess));if(cfg.exists())tCount=cfg.data().teamCount||6;}catch(e){}
+    for(let i=1;i<=tCount;i++){
+      const snap=await getDocs(collection(db,'sessions',sess,'teams',`team_${i}`,'submissions'));
+      await Promise.all(snap.docs.map(d=>deleteDoc(d.ref)));
+      try{await deleteDoc(doc(db,'sessions',sess,'teams',`team_${i}`,'meta','status'));}catch(e){}
+    }
+    await deleteDoc(doc(db,'course_configs',sess));
+  }
+  await setDoc(doc(db,'settings','courses'),{list:[],activeList:[]});
+  alert('초기화 완료');
+  location.reload();
+};
+</script>

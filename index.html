@@ -1049,31 +1049,37 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       alert(`'${nm}' 과정이 생성되었습니다.`);
     };
     
-    window.deleteSession = async (name) => {
-      if (!confirm(`'${name}' 과정을 삭제하시겠습니까?\n⚠️ 주의: 해당 과정에 입력된 모든 데이터(개인 및 팀 순위)도 영구적으로 함께 삭제됩니다.`)) return;
+    window.deleteCourse = async (nm) => {
+      if (!confirm(`'${nm}' 과정을 삭제하시겠습니까?\n⚠️ 주의: 해당 과정의 모든 설문 응답 및 예방대책 데이터도 영구적으로 함께 삭제됩니다.`)) return;
 
       try {
-        let tCount = 7;
-        const cfg = await getDoc(doc(db, "course_configs", name));
-        if (cfg.exists()) tCount = cfg.data().teamCount || 7;
+        let tCount = 6; // 휴먼에러 헌팅 앱의 기본 팀 수는 6입니다.
+        const cfg = await getDoc(doc(db, 'course_configs', nm));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
 
         const batch = [];
         for (let i = 1; i <= tCount; i++) {
-          const teamId = `team_${i}`;
-          const subSnap = await getDocs(collection(db, "sessions", name, "teams", teamId, "submissions"));
+          const tid = `team_${i}`;
 
-          subSnap.forEach(d => {
-            batch.push(deleteDoc(d.ref));
-          });
+          // 설문 응답 삭제
+          const subSnap = await getDocs(collection(db, 'sessions', nm, 'teams', tid, 'submissions'));
+          subSnap.forEach(d => batch.push(deleteDoc(d.ref)));
+
+          // 예방대책 삭제
+          const cmSnap = await getDocs(collection(db, 'sessions', nm, 'teams', tid, 'countermeasures'));
+          cmSnap.forEach(d => batch.push(deleteDoc(d.ref)));
+
+          // 마감 상태 문서 삭제
+          batch.push(deleteDoc(doc(db, 'sessions', nm, 'teams', tid, 'meta', 'status')));
         }
 
         await Promise.all(batch);
 
-        await deleteDoc(doc(db, "course_configs", name));
-        await updateDoc(doc(db, "settings", "courses"), { list: arrayRemove(name), activeList: arrayRemove(name) });
+        await deleteDoc(doc(db, 'course_configs', nm));
+        await updateDoc(doc(db, 'settings', 'courses'), { list: arrayRemove(nm), activeList: arrayRemove(nm) });
 
-        alert(`'${name}' 과정과 관련된 모든 데이터가 완벽하게 삭제되었습니다.`);
-
+        alert(`'${nm}' 과정과 관련된 모든 데이터가 완벽하게 삭제되었습니다.`);
+        
       } catch (error) {
         console.error("과정 삭제 중 오류 발생:", error);
         alert("삭제 중 오류가 발생했습니다.");
@@ -1453,18 +1459,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
       }
     };
-
-    // (기존 코드) 마감 처리 함수
-    window.closeAllSurveys = async () => {
-      // ... 생략 ...
-    } catch (error) {
-      console.error("마감 처리 중 에러 발생:", error);
-      alert('마감 처리 중 오류가 발생했습니다. 네트워크 상태를 확인해주세요.');
-    }
-    };
-
-    // 👇 여기에 아래의 새로운 함수를 통째로 붙여넣어 주세요! 👇
-
+    
     window.cancelAllSurveys = async () => {
       if (!currentDashSess) return;
 

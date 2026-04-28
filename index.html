@@ -1826,7 +1826,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
   const qs = QUESTIONS[cfg.industry || 'construction'];
   const factorNames = qs.map(q => q.factor);
-  const weights = qs.map(q => q.weight);
   const sc = SCENARIOS[cfg.scenario || 'con1'];
   const answerKeys = sc ? sc.answer : [];
 
@@ -1838,7 +1837,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       collection(db, 'sessions', sessId, 'teams', tid, 'submissions')
     );
     if (snap.empty) {
-      teamResults.push({ name: `${i}팀`, cnt: 0, sums: null });
+      teamResults.push({ name: `${i}팀`, cnt: 0, sums: null,
+        inParetoSet: new Set(), total: 0, consensusRate: 0 });
       continue;
     }
     const sums = new Array(12).fill(0);
@@ -1851,137 +1851,140 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         });
       }
     });
-    teamResults.push({ name: `${i}팀`, cnt, sums });
-  }
-
-  // 요인별 최대값 계산 (막대 너비 기준 통일용)
-  let globalMax = 0;
-  teamResults.forEach(t => {
-    if (!t.sums) return;
-    const mx = Math.max(...t.sums);
-    if (mx > globalMax) globalMax = mx;
-  });
-
-  // 팀 정보 컬럼 헤더
-  let infoHeader = `
-    <th style="min-width:90px;width:90px;text-align:left;
-      position:sticky;left:0;background:#f8fafc;z-index:2;">팀 정보</th>`;
-
-  // 요인별 헤더
-  let factorHeaders = factorNames.map((nm, i) => {
-    const isAnswer = answerKeys.includes(nm);
-    return `<th style="min-width:80px;font-size:.72rem;font-weight:600;
-      color:${isAnswer ? '#dc2626' : 'var(--p)'};
-      padding:6px 4px;word-break:keep-all;line-height:1.3;">
-      ${nm}${isAnswer ? '<br><span style="font-size:.65rem;color:#dc2626;">★정답</span>' : ''}
-    </th>`;
-  }).join('');
-
-  // 팀별 행 생성
-  let rows = teamResults.map(t => {
-    if (!t.sums) {
-      return `<tr>
-        <td style="position:sticky;left:0;background:#fff;z-index:1;
-          text-align:left;padding:8px;font-size:.88rem;color:#94a3b8;">
-          <strong>${t.name}</strong><br>응답 없음
-        </td>
-        <td colspan="${factorNames.length}"
-          style="color:#94a3b8;font-size:.82rem;text-align:center;">
-          —
-        </td>
-      </tr>`;
-    }
 
     // 파레토 계산
-    const indexed = factorNames.map((nm, i) => ({ name: nm, val: t.sums[i], idx: i }));
-    indexed.sort((a, b) => b.val - a.val);
+    const indexed = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }))
+      .sort((a, b) => b.val - a.val);
     const total = indexed.reduce((s, x) => s + x.val, 0);
     let cum = 0, paretoIdx = -1;
     for (let i = 0; i < indexed.length; i++) {
       cum += indexed[i].val;
       if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = i;
     }
-    // 파레토 포함 여부 맵
     const inParetoSet = new Set(indexed.slice(0, paretoIdx + 1).map(x => x.name));
-    const consensusRate = total > 0 ? Math.round(indexed[0].val / total * 100) : 0;
+    const consensusRate = total > 0
+      ? Math.round(indexed[0].val / total * 100) : 0;
 
-    // 팀 정보 셀
-    const infoCell = `
-      <td style="position:sticky;left:0;background:#fff;z-index:1;
-        border-right:2px solid #e2e8f0;padding:8px 6px;vertical-align:top;
-        min-width:90px;width:90px;">
-        <div style="font-weight:700;font-size:.9rem;color:var(--p);">
-          ${t.name}
-        </div>
-        <div style="font-size:.75rem;color:#64748b;margin-top:2px;">
-          ${t.cnt}명 응답
-        </div>
-        <div style="margin-top:5px;">
-          <span class="badge ${consensusRate >= 40 ? 'bg-green' : 'bg-amber'}"
-            style="font-size:.7rem;padding:2px 6px;">
-            일치도 ${consensusRate}%
-          </span>
-        </div>
+    teamResults.push({ name: `${i}팀`, cnt, sums, inParetoSet, total, consensusRate });
+  }
+
+  // 요인별 각 팀의 최대값 (막대 너비 기준 — 요인 행 단위로 상대 비교)
+  const factorMaxVals = factorNames.map((_, fi) => {
+    return Math.max(...teamResults.map(t => t.sums ? t.sums[fi] : 0), 1);
+  });
+
+  // 헤더: 요인명 열 + 팀별 열
+  const teamHeaders = teamResults.map(t => {
+    if (!t.sums) {
+      return `<th style="min-width:90px;text-align:center;font-size:.8rem;">
+        ${t.name}<br>
+        <span style="font-size:.72rem;font-weight:400;color:#94a3b8;">응답 없음</span>
+      </th>`;
+    }
+    return `<th style="min-width:90px;text-align:center;font-size:.8rem;">
+      ${t.name}<br>
+      <span style="font-size:.72rem;font-weight:400;color:#64748b;">${t.cnt}명</span><br>
+      <span class="badge ${t.consensusRate >= 40 ? 'bg-green' : 'bg-amber'}"
+        style="font-size:.68rem;padding:1px 5px;margin-top:2px;display:inline-block;">
+        일치도 ${t.consensusRate}%
+      </span>
+    </th>`;
+  }).join('');
+
+  // 요인별 행 생성
+  const factorRows = factorNames.map((nm, fi) => {
+    const isAnswer = answerKeys.includes(nm);
+
+    // 요인명 셀 (좌측 고정)
+    const nameCell = `
+      <td style="
+        position:sticky;left:0;z-index:1;
+        background:${isAnswer ? '#fef9ec' : '#fff'};
+        border-right:2px solid #e2e8f0;
+        padding:6px 8px;
+        font-size:.82rem;font-weight:${isAnswer ? 700 : 400};
+        color:${isAnswer ? '#92400e' : '#334155'};
+        white-space:nowrap;
+        min-width:120px;width:120px;">
+        ${nm}${isAnswer
+          ? '<span style="color:#dc2626;font-size:.7rem;margin-left:4px;">★</span>'
+          : ''}
       </td>`;
 
-    // 요인별 막대 셀 — 원래 순서(factorNames) 기준으로 표시
-    const barCells = factorNames.map((nm, fi) => {
+    // 팀별 막대 셀
+    const barCells = teamResults.map(t => {
+      if (!t.sums) {
+        return `<td style="text-align:center;color:#e2e8f0;font-size:.75rem;">—</td>`;
+      }
       const val = t.sums[fi];
-      const pct = total > 0 ? Math.round(val / total * 100) : 0;
-      const barW = globalMax > 0 ? Math.round(val / globalMax * 100) : 0;
-      const inPareto = inParetoSet.has(nm);
-      const isAnswer = answerKeys.includes(nm);
-
+      const pct = t.total > 0 ? Math.round(val / t.total * 100) : 0;
+      const barW = Math.round(val / factorMaxVals[fi] * 100);
+      const inPareto = t.inParetoSet.has(nm);
       const barColor = inPareto ? '#dc2626' : '#94a3b8';
-      const bgColor = inPareto
-        ? (isAnswer ? '#fef2f2' : '#fff7f7')
-        : '#fafafa';
+      const cellBg = inPareto ? '#fff5f5' : '#fafafa';
 
-      return `<td style="padding:4px 3px;vertical-align:middle;
-          background:${bgColor};min-width:80px;">
-        <div style="position:relative;height:20px;
+      return `<td style="padding:4px 6px;background:${cellBg};vertical-align:middle;">
+        <div style="position:relative;height:18px;
           background:#f1f5f9;border-radius:3px;overflow:hidden;">
-          <div style="position:absolute;left:0;top:0;height:100%;
-            width:${barW}%;background:${barColor};
-            border-radius:3px;transition:width .4s ease;">
+          <div style="
+            position:absolute;left:0;top:0;height:100%;
+            width:${barW}%;
+            background:${barColor};
+            border-radius:3px;">
           </div>
-          <span style="position:absolute;right:3px;top:50%;
+          <span style="
+            position:absolute;right:3px;top:50%;
             transform:translateY(-50%);
             font-size:.68rem;font-weight:600;
             color:${inPareto ? '#991b1b' : '#64748b'};
-            white-space:nowrap;line-height:1;">
+            white-space:nowrap;">
             ${pct}%
           </span>
         </div>
       </td>`;
     }).join('');
 
-    return `<tr style="border-bottom:1px solid #f1f5f9;">
-      ${infoCell}${barCells}
+    // 요인 행 배경: 정답 요인이면 연한 노란색
+    const rowBg = isAnswer ? 'background:#fffbeb;' : '';
+    return `<tr style="border-bottom:1px solid #f1f5f9;${rowBg}">
+      ${nameCell}${barCells}
     </tr>`;
   }).join('');
 
   div.innerHTML = `
-    <div style="font-size:.8rem;color:#475569;margin-bottom:8px;">
-      <span style="display:inline-block;width:12px;height:12px;
-        background:#dc2626;border-radius:2px;margin-right:4px;
-        vertical-align:middle;"></span>붉은 막대 = 파레토 80% 구간
-      &nbsp;
-      <span style="color:#dc2626;font-weight:600;">★정답</span> = 전문가 정답 요인
+    <div style="font-size:.78rem;color:#475569;margin-bottom:8px;
+      display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+      <span>
+        <span style="display:inline-block;width:10px;height:10px;
+          background:#dc2626;border-radius:2px;
+          vertical-align:middle;margin-right:3px;"></span>
+        붉은 막대 = 해당 팀 파레토 80% 구간
+      </span>
+      <span>
+        <span style="color:#dc2626;font-weight:700;">★</span>
+        = 전문가 정답 요인 (노란 행)
+      </span>
+      <span style="color:#94a3b8;">
+        ※ 막대 너비는 요인별 팀간 상대 비교 / 숫자는 팀 내 비중(%)
+      </span>
     </div>
     <div class="table-wrap" style="overflow-x:auto;">
-      <table style="border-collapse:collapse;width:100%;
-        table-layout:fixed;font-size:.85rem;">
+      <table style="border-collapse:collapse;width:100%;font-size:.85rem;">
         <thead>
           <tr style="background:#f8fafc;border-bottom:2px solid #e2e8f0;">
-            ${infoHeader}${factorHeaders}
+            <th style="
+              position:sticky;left:0;z-index:2;
+              background:#f8fafc;
+              min-width:120px;width:120px;
+              text-align:left;padding:8px;
+              font-size:.82rem;border-right:2px solid #e2e8f0;">
+              요인
+            </th>
+            ${teamHeaders}
           </tr>
         </thead>
-        <tbody>${rows}</tbody>
+        <tbody>${factorRows}</tbody>
       </table>
-    </div>
-    <div style="font-size:.75rem;color:#94a3b8;margin-top:8px;text-align:right;">
-      ※ 막대 너비는 전체 팀 중 최고값 기준 상대 비교 / 숫자는 해당 팀 내 비중(%)
     </div>
   `;
 };

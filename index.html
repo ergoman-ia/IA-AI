@@ -1538,10 +1538,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       </td>`;
         }).join('');
         const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
+        const consensusColor = t.consensusRate >= 40 ? 'bg-green' : 'bg-amber';
+        
         summaryRows += `<tr>
-      <td><strong>${t.name}</strong><br>
+      <td><strong>${t.name}_</strong>
         <span style="font-size:.78rem;color:#64748b;">${t.cnt}명</span>
       </td>
+      <td><strong style="color:${consensusColor};">${t.consensusRate}%</strong></td>
       ${rankCols}
       <td><strong style="color:${accColor};">${t.accuracy}%</strong></td>
     </tr>`;
@@ -1573,6 +1576,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <thead>
             <tr>
               <th style="width:70px;">팀</th>
+              <th style="width:65px;">팀원간 일치도</th>
               <th>1순위</th>
               <th>2순위</th>
               <th>3순위</th>

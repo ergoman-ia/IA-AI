@@ -1517,8 +1517,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       // 요약 테이블 행 생성
       let summaryRows = '';
-      allTeamSummary.forEach(t => {
-        t.consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
+      allTeamSummary.forEach(t => {        
         if (!t.top3.length) {
           summaryRows += `<tr>
         <td><strong>${t.name}</strong></td>
@@ -1538,14 +1537,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <span style="font-size:.75rem;color:#94a3b8;margin-left:2px;">${item.pct}%</span>
       </td>`;
         }).join('');
-        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
-        const consensusColor = t.consensusRate >= 40 ? 'bg-green' : 'bg-amber';
+        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';        
         
         summaryRows += `<tr>
       <td><strong>${t.name}_</strong>
         <span style="font-size:.78rem;color:#64748b;">${t.cnt}명</span>
       </td>
-      <td><strong style="color:${consensusColor};">${t.consensusRate}%</strong></td>
+      <td><strong><span class="badge ${t.consensusRate >= 40 ? 'bg-green' : 'bg-amber'}">${t.consensusRate}%</span></strong></td>
       ${rankCols}
       <td><strong style="color:${accColor};">${t.accuracy}%</strong></td>
     </tr>`;

@@ -1862,7 +1862,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           const isAnswer = answerKeys.includes(item.name);
           barHtml += `<div class="pareto-bar-wrap">
         <div class="pareto-bar-label">
-          <span style="font-weight:${inPareto ? 600 : 400};color:${inPareto ? '#dc2626' : '#64748b'};">${item.name}${isAnswer ? ' ★' : ''}</span>
+          <span style="font-weight:${inPareto ? 600 : 400};color:${inPareto ? '#dc2626' : '#64748b'};">${item.name}</span>
           <span style="font-size:.78rem;color:#94a3b8;">${pct}% (누적 ${cumPct > 100 ? 100 : cumPct}%)</span>
         </div>
         <div class="pareto-bar-bg"><div class="pareto-bar-fill ${inPareto ? 'bar-in80' : 'bar-out80'}" style="width:${pct}%;"></div></div>
@@ -1878,7 +1878,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <span class="badge ${consensusRate >= 40 ? 'bg-green' : 'bg-amber'}">팀원간 일치도 : ${consensusRate}%</span>
         </div>
       </div>
-      <div style="margin-bottom:8px;font-size:.82rem;color:#475569;">★ = 강사 정답 요인 &nbsp;|&nbsp; <span style="color:var(--d);">붉은 바</span> = 파레토 80% 구간</div>
+      <div style="margin-bottom:8px;font-size:.82rem;color:#475569;"><span style="color:var(--d);">붉은 바</span> = 파레토 80% 구간</div>
       ${barHtml}
       <div class="cumulative-line"></div>
       <div class="answer-key-box">

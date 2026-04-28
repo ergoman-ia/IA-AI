@@ -1826,8 +1826,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
   const qs = QUESTIONS[cfg.industry || 'construction'];
   const factorNames = qs.map(q => q.factor);
-  const sc = SCENARIOS[cfg.scenario || 'con1'];
-  const answerKeys = sc ? sc.answer : [];
 
   // 모든 팀 데이터 수집 + 파레토 계산
   let teamResults = [];
@@ -1865,52 +1863,37 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = j;
     }
 
-    // 누적 비율 계산
-    let cumSum = 0;
-    const withCum = sorted.map((item, j) => {
-      const pct = total > 0 ? Math.round(item.val / total * 100) : 0;
-      cumSum += pct;
-      return {
-        name: item.name,
-        pct,
-        cumPct: Math.min(cumSum, 100),
-        inPareto: j <= paretoIdx,
-        isAnswer: answerKeys.includes(item.name)
-      };
-    });
+    // 개별 비율 계산
+    const withPct = sorted.map((item, j) => ({
+      name: item.name,
+      pct: total > 0 ? Math.round(item.val / total * 100) : 0,
+      inPareto: j <= paretoIdx
+    }));
 
     const consensusRate = total > 0
       ? Math.round(sorted[0].val / total * 100) : 0;
 
-    teamResults.push({ name: `${i}팀`, cnt, sorted: withCum,
+    teamResults.push({ name: `${i}팀`, cnt, sorted: withPct,
       paretoIdx, consensusRate });
   }
 
   // 팀별 컬럼 생성
   const teamCols = teamResults.map(t => {
-    // 응답 없는 팀
     if (!t.sorted) {
       return `
-        <div style="
-          min-width:160px;flex:1;
-          background:#f8fafc;
-          border:1px solid #e2e8f0;
-          border-radius:10px;
-          padding:12px 10px;
-          text-align:center;">
+        <div style="min-width:160px;flex:1;background:#f8fafc;
+          border:1px solid #e2e8f0;border-radius:10px;
+          padding:12px 10px;text-align:center;">
           <div style="font-weight:700;color:var(--p);
-            font-size:.95rem;margin-bottom:4px;">
-            ${t.name}
-          </div>
+            font-size:.95rem;margin-bottom:4px;">${t.name}</div>
           <div style="color:#94a3b8;font-size:.82rem;
             padding:20px 0;">응답 없음</div>
         </div>`;
     }
 
-    // 팀 헤더
     const header = `
-      <div style="margin-bottom:10px;
-        padding-bottom:8px;border-bottom:2px solid #e2e8f0;">
+      <div style="margin-bottom:10px;padding-bottom:8px;
+        border-bottom:2px solid #e2e8f0;">
         <div style="font-weight:700;color:var(--p);font-size:.95rem;">
           ${t.name}
         </div>
@@ -1924,104 +1907,28 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         </span>
       </div>`;
 
-    // 요인별 막대 (비중 순)
-    const bars = t.sorted.map((item, j) => {
-      const barColor = item.inPareto ? '#dc2626' : '#94a3b8';
-      const labelColor = item.inPareto ? '#991b1b' : '#64748b';
-      const rowBg = item.inPareto
-        ? (item.isAnswer ? '#fff5f5' : '#fffafa')
-        : 'transparent';
-
-      return `
-        <div style="margin-bottom:5px;padding:3px 0;
-          background:${rowBg};border-radius:4px;">
-          <!-- 요인명 + 정답 표시 -->
-          <div style="display:flex;justify-content:space-between;
-            align-items:center;margin-bottom:2px;">
-            <span style="
-              font-size:.75rem;
-              font-weight:${item.inPareto ? 600 : 400};
-              color:${labelColor};
-              white-space:nowrap;overflow:hidden;
-              text-overflow:ellipsis;
-              max-width:calc(100% - 45px);">
-              ${item.name}${item.isAnswer
-                ? '<span style="color:#dc2626;margin-left:2px;">★</span>'
-                : ''}
-            </span>
-            <span style="font-size:.7rem;color:${labelColor};
-              white-space:nowrap;margin-left:4px;">
-              ${item.pct}%
-            </span>
-          </div>
-          <!-- 막대 (개별 비율) -->
-          <div style="height:14px;background:#f1f5f9;
-            border-radius:3px;overflow:hidden;position:relative;">
-            <div style="
-              height:100%;width:${item.pct}%;
-              background:${barColor};
-              border-radius:3px;"></div>
-            <!-- 누적 비율 표시선 -->
-            <div style="
-              position:absolute;right:2px;top:50%;
-              transform:translateY(-50%);
-              font-size:.62rem;color:#94a3b8;
-              line-height:1;">
-              ∑${item.cumPct}%
-            </div>
-          </div>
-        </div>`;
-    }).join('');
-
-    // 파레토 경계선
-    const paretoLine = `
-      <div style="
-        border-top:2px dashed #dc2626;
-        margin:6px 0 4px;
-        position:relative;">
-        <span style="
-          position:absolute;right:0;top:-9px;
-          font-size:.65rem;color:#dc2626;
-          background:#fff;padding:0 3px;">
-          ─ 80% 선
-        </span>
-      </div>`;
-
-    // 파레토 경계 위치에 구분선 삽입
-    const barsWithLine = t.sorted.map((item, j) => {
-      const barHtml = bars.split('</div>\n        <div style="margin-bottom')[j] || '';
-      return j === t.paretoIdx
-        ? barHtml + paretoLine
-        : barHtml;
-    });
-
-    // 막대를 파레토 구분선 포함해서 재조합
     let barsHtml = '';
     t.sorted.forEach((item, j) => {
       const barColor = item.inPareto ? '#dc2626' : '#94a3b8';
       const labelColor = item.inPareto ? '#991b1b' : '#64748b';
-      const rowBg = item.inPareto
-        ? (item.isAnswer ? '#fff5f5' : '#fffafa')
-        : 'transparent';
+      const rowBg = item.inPareto ? '#fff5f5' : 'transparent';
 
       barsHtml += `
         <div style="margin-bottom:5px;padding:2px 0;
           background:${rowBg};border-radius:4px;">
           <div style="display:flex;justify-content:space-between;
             align-items:center;margin-bottom:2px;">
-            <span style="
-              font-size:.75rem;
+            <span style="font-size:.75rem;
               font-weight:${item.inPareto ? 600 : 400};
               color:${labelColor};
               white-space:nowrap;overflow:hidden;
               text-overflow:ellipsis;
-              max-width:calc(100% - 50px);">
-              ${item.name}${item.isAnswer
-                ? ' <span style="color:#dc2626;">★</span>' : ''}
+              max-width:calc(100% - 36px);">
+              ${item.name}
             </span>
             <span style="font-size:.7rem;color:${labelColor};
-              white-space:nowrap;">
-              ${item.pct}% <span style="color:#94a3b8;">∑${item.cumPct}%</span>
+              white-space:nowrap;margin-left:4px;">
+              ${item.pct}%
             </span>
           </div>
           <div style="height:14px;background:#f1f5f9;
@@ -2040,11 +1947,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     });
 
     return `
-      <div style="
-        min-width:160px;flex:1;
-        background:#fff;
-        border:1px solid #e2e8f0;
-        border-radius:10px;
+      <div style="min-width:160px;flex:1;background:#fff;
+        border:1px solid #e2e8f0;border-radius:10px;
         padding:12px 10px;">
         ${header}
         ${barsHtml}
@@ -2052,19 +1956,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
   }).join('');
 
   div.innerHTML = `
-    <div style="font-size:.78rem;color:#475569;
-      margin-bottom:10px;display:flex;flex-wrap:wrap;gap:10px;">
-      <span>
-        <span style="display:inline-block;width:10px;height:10px;
-          background:#dc2626;border-radius:2px;
-          vertical-align:middle;margin-right:3px;"></span>
-        붉은 막대 = 파레토 80% 구간
-      </span>
-      <span style="color:#dc2626;font-weight:700;">★</span>
-      = 전문가 정답 요인
-      <span style="color:#94a3b8;">
-        ∑ = 누적 비중
-      </span>
+    <div style="font-size:.78rem;color:#475569;margin-bottom:10px;">
+      <span style="display:inline-block;width:10px;height:10px;
+        background:#dc2626;border-radius:2px;
+        vertical-align:middle;margin-right:3px;"></span>
+      붉은 막대 = 파레토 80% 구간
     </div>
     <div style="display:flex;gap:12px;overflow-x:auto;
       padding-bottom:8px;align-items:flex-start;">

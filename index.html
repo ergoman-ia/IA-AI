@@ -1518,6 +1518,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 요약 테이블 행 생성
       let summaryRows = '';
       allTeamSummary.forEach(t => {
+        t.consensusRate = total > 0 ? Math.round((indexed[0].val / total) * 100) : 0;
         if (!t.top3.length) {
           summaryRows += `<tr>
         <td><strong>${t.name}</strong></td>

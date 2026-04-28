@@ -1512,7 +1512,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
         const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
         const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-        const consensusRate = currentTotal > 0 ? Math.round((indexed[0].val / currentTotal) * 100) : 0;
+        const consensusRate = tot > 0 ? Math.round((indexed[0].val / tot) * 100) : 0;
         allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy, consensusRate });
       }
 

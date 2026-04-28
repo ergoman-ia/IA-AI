@@ -1512,7 +1512,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
         const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
         const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-        allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy });
+        allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy, consensusRate });
       }
 
       // 요약 테이블 행 생성
@@ -1575,11 +1575,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <table>
           <thead>
             <tr>
-              <th style="width:70px;">팀</th>
-              <th style="width:65px;">팀원간 일치도</th>
-              <th>1순위</th>
-              <th>2순위</th>
-              <th>3순위</th>
+              <th style="width:120px;">팀</th>
+              <th style="width:120px;">팀원간 일치도</th>
+              <th style="width:80px;">1순위</th>
+              <th style="width:80px;">2순위</th>
+              <th style="width:80px;">3순위</th>
               <th style="width:65px;">정확도</th>
             </tr>
           </thead>

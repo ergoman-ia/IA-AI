@@ -1488,11 +1488,32 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         if (snap.empty) { allTeamSummary.push({ name: `${i}팀`, cnt: 0, top3: [] }); continue; }
         const sums = new Array(12).fill(0);
         let cnt = 0;
+        
+        let teamIndivParetos = []; // 💡 개인별 파레토 바구니 추가
+
         snap.forEach(d => {
           const s = d.data().scores;
           if (s && Array.isArray(s)) {
-            s.forEach((item, idx) => { if (idx < 12) sums[idx] += (item.weighted || 0); });
+            let myScores = [];
+            s.forEach((item, idx) => { 
+              if (idx < 12) {
+                const val = item.weighted || 0;
+                sums[idx] += val; 
+                myScores.push({ name: factorNames[idx], val: val });
+              }
+            });
             cnt++;
+            
+            // 💡 개인별 파레토 80% 추출
+            myScores.sort((a,b) => b.val - a.val);
+            let myTot = myScores.reduce((acc,x) => acc + x.val, 0);
+            let myCum = 0, myPIdx = -1;
+            for(let j=0; j<myScores.length; j++) {
+                myCum += myScores[j].val;
+                if(myCum/myTot >= 0.8 && myPIdx === -1) myPIdx = j;
+            }
+            const myTopNames = myScores.slice(0, myPIdx+1).map(x => x.name);
+            teamIndivParetos.push(...myTopNames);
           }
         });
         const indexed = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }))
@@ -1513,7 +1534,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
         const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
         const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-        const consensusRate = tot > 0 ? Math.round((indexed[0].val / tot) * 100) : 0;
+        
+        // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
+        let consensusRate = 0;
+        if (teamIndivParetos.length > 0) {
+            const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
+            consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
+        }
+
         allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy, consensusRate });
       }
 
@@ -1841,12 +1869,31 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     }
     const sums = new Array(12).fill(0);
     const cnt = snap.docs.length;
+    
+    let teamIndivParetos = []; // 💡 개인 파레토 바구니 추가
+
     snap.forEach(d => {
       const s = d.data().scores;
       if (s && Array.isArray(s)) {
+        let myScores = [];
         s.forEach((item, idx) => {
-          if (idx < 12) sums[idx] += (item.weighted || item.score || 0);
+          if (idx < 12) {
+             const val = (item.weighted || item.score || 0);
+             sums[idx] += val;
+             myScores.push({ name: factorNames[idx], val: val });
+          }
         });
+        
+        // 💡 개인별 파레토 80% 요인 추출
+        myScores.sort((a,b) => b.val - a.val);
+        let myTot = myScores.reduce((acc,x) => acc + x.val, 0);
+        let myCum = 0, myPIdx = -1;
+        for(let j=0; j<myScores.length; j++) {
+            myCum += myScores[j].val;
+            if(myCum/myTot >= 0.8 && myPIdx === -1) myPIdx = j;
+        }
+        const myTopNames = myScores.slice(0, myPIdx+1).map(x => x.name);
+        teamIndivParetos.push(...myTopNames);
       }
     });
 
@@ -1871,8 +1918,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       inPareto: j <= paretoIdx
     }));
 
-    const consensusRate = total > 0
-      ? Math.round(sorted[0].val / total * 100) : 0;
+    // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
+    const topNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
+    let consensusRate = 0;
+    if (teamIndivParetos.length > 0) {
+        const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
+        consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
+    }
 
     teamResults.push({ name: `${i}팀`, cnt, sorted: withPct,
       paretoIdx, consensusRate });

@@ -1155,15 +1155,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const teamText = tSel.options[tSel.selectedIndex]?.text || '';
       if (!sessId || !teamVal) return alert('과정과 팀을 선택해주세요.');
 
-      // 이미 제출한 경우 안내
-      if (sessionStorage.getItem(`submitted_${sessId}`)) {
-        return alert('이미 설문을 제출하셨습니다.\n강사의 안내를 기다려주세요.');
-      }
-
       let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
       try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
 
+      // 1. 관리자가 설문을 마감했는지(2단계 오픈) 먼저 확인합니다.
       const closed = await checkIfClosed(sessId, teamVal);
+
+      // 2. 💡 수정 완료: 설문 진행 중(!closed)인데, 이미 제출한 기록이 있을 때만 튕겨냅니다!
+      if (!closed && sessionStorage.getItem(`submitted_${sessId}`)) {
+        return alert('이미 설문을 제출하셨습니다.\n강사의 안내를 기다려주세요.');
+      }
 
       sessionStorage.setItem('sim_sess', sessId);
       sessionStorage.setItem('sim_team', teamVal);

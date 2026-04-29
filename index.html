@@ -452,7 +452,7 @@
     }
 
     .danger-zone {
-      display:none;
+      display: none;
       margin-top: 24px;
       padding: 16px;
       border: 2px dashed var(--d);
@@ -462,7 +462,7 @@
     }
 
     .danger-zone.show {
-      display:block;
+      display: block;
     }
 
     .progress-strip {
@@ -1127,16 +1127,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (!sess) return;
 
       let tCount = 6;
-      try { 
-        const cfg = await getDoc(doc(db, 'course_configs', sess)); 
-        if (cfg.exists()) tCount = cfg.data().teamCount || 6; 
+      try {
+        const cfg = await getDoc(doc(db, 'course_configs', sess));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
       } catch (e) { }
-      
+
       tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
 
       // [추가된 로직] 과정 마감 여부에 따라 버튼 바탕색과 텍스트 변경
-      const isClosed = await checkIfClosed(sess, 'team_1'); 
-      
+      const isClosed = await checkIfClosed(sess, 'team_1');
+
       if (isClosed && joinBtn) {
         joinBtn.innerText = '개선 및 예방대책 입력';
         joinBtn.classList.remove('btn-blue');
@@ -1147,7 +1147,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         joinBtn.classList.add('btn-blue');
       }
     };
-    
+
     window.enterSim = async () => {
       const sessId = document.getElementById('userCourseSelect').value;
       const tSel = document.getElementById('userTeamSelect');
@@ -1488,31 +1488,25 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         if (snap.empty) { allTeamSummary.push({ name: `${i}팀`, cnt: 0, top3: [] }); continue; }
         const sums = new Array(12).fill(0);
         let cnt = 0;
-        
+
         let teamIndivParetos = []; // 💡 개인별 파레토 바구니 추가
 
         snap.forEach(d => {
           const s = d.data().scores;
           if (s && Array.isArray(s)) {
             let myScores = [];
-            s.forEach((item, idx) => { 
+            s.forEach((item, idx) => {
               if (idx < 12) {
                 const val = item.weighted || 0;
-                sums[idx] += val; 
+                sums[idx] += val;
                 myScores.push({ name: factorNames[idx], val: val });
               }
             });
             cnt++;
-            
-            // 💡 개인별 파레토 80% 추출
-            myScores.sort((a,b) => b.val - a.val);
-            let myTot = myScores.reduce((acc,x) => acc + x.val, 0);
-            let myCum = 0, myPIdx = -1;
-            for(let j=0; j<myScores.length; j++) {
-                myCum += myScores[j].val;
-                if(myCum/myTot >= 0.8 && myPIdx === -1) myPIdx = j;
-            }
-            const myTopNames = myScores.slice(0, myPIdx+1).map(x => x.name);
+
+            // 개인별 가중점수 내림차순 정렬 후 상위 4개 추출
+            myScores.sort((a, b) => b.val - a.val);
+            const myTopNames = myScores.slice(0, 4).map(x => x.name);
             teamIndivParetos.push(...myTopNames);
           }
         });
@@ -1534,12 +1528,12 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const topNames = indexed.slice(0, pIdx + 1).map(x => x.name);
         const matchCnt = topNames.filter(n => answerKeys.includes(n)).length;
         const accuracy = answerKeys.length > 0 ? Math.round(matchCnt / answerKeys.length * 100) : 0;
-        
+
         // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-            const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
-            consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
+          const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
+          consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
         }
 
         allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy, consensusRate });
@@ -1547,7 +1541,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       // 요약 테이블 행 생성
       let summaryRows = '';
-      allTeamSummary.forEach(t => {        
+      allTeamSummary.forEach(t => {
         if (!t.top3.length) {
           summaryRows += `<tr>
         <td><strong>${t.name}</strong></td>
@@ -1567,13 +1561,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <span style="font-size:.75rem;color:#94a3b8;margin-left:2px;">${item.pct}%</span>
       </td>`;
         }).join('');
-        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';        
-        
+        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
+
         summaryRows += `<tr>
       <td><strong>${t.name}_</strong>
         <span style="font-size:.78rem;color:#64748b;">${t.cnt}명</span>
       </td>
-      <td><strong><span class="badge ${t.consensusRate >= 40 ? 'bg-green' : 'bg-amber'}">${t.consensusRate}%</span></strong></td>
+      <td><strong><span class="badge ${t.consensusRate >= 70 ? 'bg-green' : t.consensusRate >= 45 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></strong></td>
       ${rankCols}
       <td><strong style="color:${accColor};">${t.accuracy}%</strong></td>
     </tr>`;
@@ -1839,101 +1833,97 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     };
 
     window.loadResultData = async () => {
-  const sessId = document.getElementById('resultCourseSelect').value;
-  const div = document.getElementById('resultContent');
-  if (!sessId) {
-    div.innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>';
-    return;
-  }
-  div.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">분석 중...</p>';
+      const sessId = document.getElementById('resultCourseSelect').value;
+      const div = document.getElementById('resultContent');
+      if (!sessId) {
+        div.innerHTML = '<p style="text-align:center;padding:28px;color:#94a3b8;">과정을 선택해주세요.</p>';
+        return;
+      }
+      div.innerHTML = '<p style="text-align:center;padding:20px;color:#64748b;">분석 중...</p>';
 
-  let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
-  try {
-    const c = await getDoc(doc(db, 'course_configs', sessId));
-    if (c.exists()) cfg = c.data();
-  } catch (e) { }
+      let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
+      try {
+        const c = await getDoc(doc(db, 'course_configs', sessId));
+        if (c.exists()) cfg = c.data();
+      } catch (e) { }
 
-  const qs = QUESTIONS[cfg.industry || 'construction'];
-  const factorNames = qs.map(q => q.factor);
+      const qs = QUESTIONS[cfg.industry || 'construction'];
+      const factorNames = qs.map(q => q.factor);
 
-  // 모든 팀 데이터 수집 + 파레토 계산
-  let teamResults = [];
-  for (let i = 1; i <= cfg.teamCount; i++) {
-    const tid = `team_${i}`;
-    const snap = await getDocs(
-      collection(db, 'sessions', sessId, 'teams', tid, 'submissions')
-    );
-    if (snap.empty) {
-      teamResults.push({ name: `${i}팀`, cnt: 0, sorted: null });
-      continue;
-    }
-    const sums = new Array(12).fill(0);
-    const cnt = snap.docs.length;
-    
-    let teamIndivParetos = []; // 💡 개인 파레토 바구니 추가
+      // 모든 팀 데이터 수집 + 파레토 계산
+      let teamResults = [];
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const tid = `team_${i}`;
+        const snap = await getDocs(
+          collection(db, 'sessions', sessId, 'teams', tid, 'submissions')
+        );
+        if (snap.empty) {
+          teamResults.push({ name: `${i}팀`, cnt: 0, sorted: null });
+          continue;
+        }
+        const sums = new Array(12).fill(0);
+        const cnt = snap.docs.length;
 
-    snap.forEach(d => {
-      const s = d.data().scores;
-      if (s && Array.isArray(s)) {
-        let myScores = [];
-        s.forEach((item, idx) => {
-          if (idx < 12) {
-             const val = (item.weighted || item.score || 0);
-             sums[idx] += val;
-             myScores.push({ name: factorNames[idx], val: val });
+        let teamIndivParetos = []; // 💡 개인 파레토 바구니 추가
+
+        snap.forEach(d => {
+          const s = d.data().scores;
+          if (s && Array.isArray(s)) {
+            let myScores = [];
+            s.forEach((item, idx) => {
+              if (idx < 12) {
+                const val = (item.weighted || item.score || 0);
+                sums[idx] += val;
+                myScores.push({ name: factorNames[idx], val: val });
+              }
+            });
+
+            // 개인별 가중점수 내림차순 정렬 후 상위 4개 추출
+            myScores.sort((a, b) => b.val - a.val);
+            const myTopNames = myScores.slice(0, 4).map(x => x.name);
+            teamIndivParetos.push(...myTopNames);
           }
         });
-        
-        // 💡 개인별 파레토 80% 요인 추출
-        myScores.sort((a,b) => b.val - a.val);
-        let myTot = myScores.reduce((acc,x) => acc + x.val, 0);
-        let myCum = 0, myPIdx = -1;
-        for(let j=0; j<myScores.length; j++) {
-            myCum += myScores[j].val;
-            if(myCum/myTot >= 0.8 && myPIdx === -1) myPIdx = j;
+
+        // 비중 순 정렬
+        const sorted = factorNames
+          .map((nm, fi) => ({ name: nm, val: sums[fi] }))
+          .sort((a, b) => b.val - a.val);
+
+        const total = sorted.reduce((s, x) => s + x.val, 0);
+
+        // 파레토 80% 경계 찾기
+        let cum = 0, paretoIdx = -1;
+        for (let j = 0; j < sorted.length; j++) {
+          cum += sorted[j].val;
+          if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = j;
         }
-        const myTopNames = myScores.slice(0, myPIdx+1).map(x => x.name);
-        teamIndivParetos.push(...myTopNames);
+
+        // 개별 비율 계산
+        const withPct = sorted.map((item, j) => ({
+          name: item.name,
+          pct: total > 0 ? Math.round(item.val / total * 100) : 0,
+          inPareto: j <= paretoIdx
+        }));
+
+        // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
+        const topNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
+        let consensusRate = 0;
+        if (teamIndivParetos.length > 0) {
+          const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
+          consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
+        }
+
+        teamResults.push({
+          name: `${i}팀`, cnt, sorted: withPct,
+          paretoIdx, consensusRate
+        });
       }
-    });
 
-    // 비중 순 정렬
-    const sorted = factorNames
-      .map((nm, fi) => ({ name: nm, val: sums[fi] }))
-      .sort((a, b) => b.val - a.val);
-
-    const total = sorted.reduce((s, x) => s + x.val, 0);
-
-    // 파레토 80% 경계 찾기
-    let cum = 0, paretoIdx = -1;
-    for (let j = 0; j < sorted.length; j++) {
-      cum += sorted[j].val;
-      if (cum / total >= 0.80 && paretoIdx === -1) paretoIdx = j;
-    }
-
-    // 개별 비율 계산
-    const withPct = sorted.map((item, j) => ({
-      name: item.name,
-      pct: total > 0 ? Math.round(item.val / total * 100) : 0,
-      inPareto: j <= paretoIdx
-    }));
-
-    // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
-    const topNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
-    let consensusRate = 0;
-    if (teamIndivParetos.length > 0) {
-        const matchCount = teamIndivParetos.filter(n => topNames.includes(n)).length;
-        consensusRate = Math.round((matchCount / teamIndivParetos.length) * 100);
-    }
-
-    teamResults.push({ name: `${i}팀`, cnt, sorted: withPct,
-      paretoIdx, consensusRate });
-  }
-
-  // 팀별 컬럼 생성
-  const teamCols = teamResults.map(t => {
-    if (!t.sorted) {
-      return `
+      // 팀별 컬럼 생성
+      const teamCols = teamResults.map(t => {
+        if (!t.sorted) {
+          return `
         <div style="min-width:160px;flex:1;background:#f8fafc;
           border:1px solid #e2e8f0;border-radius:10px;
           padding:12px 10px;text-align:center;">
@@ -1942,9 +1932,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <div style="color:#94a3b8;font-size:.82rem;
             padding:20px 0;">응답 없음</div>
         </div>`;
-    }
+        }
 
-    const header = `
+        const header = `
       <div style="margin-bottom:10px;padding-bottom:8px;
         border-bottom:2px solid #e2e8f0;">
         <div style="font-weight:700;color:var(--p);font-size:.95rem;">
@@ -1953,20 +1943,20 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div style="font-size:.75rem;color:#64748b;margin-top:2px;">
           ${t.cnt}명 응답
         </div>
-        <span class="badge ${t.consensusRate >= 40 ? 'bg-green' : 'bg-amber'}"
+        <span class="badge ${t.consensusRate >= 70 ? 'bg-green' : t.consensusRate >= 45 ? 'bg-amber' : 'bg-red'}"
           style="font-size:.68rem;padding:2px 6px;margin-top:4px;
           display:inline-block;">
           일치도 ${t.consensusRate}%
         </span>
       </div>`;
 
-    let barsHtml = '';
-    t.sorted.forEach((item, j) => {
-      const barColor = item.inPareto ? '#dc2626' : '#94a3b8';
-      const labelColor = item.inPareto ? '#991b1b' : '#64748b';
-      const rowBg = item.inPareto ? '#fff5f5' : 'transparent';
+        let barsHtml = '';
+        t.sorted.forEach((item, j) => {
+          const barColor = item.inPareto ? '#dc2626' : '#94a3b8';
+          const labelColor = item.inPareto ? '#991b1b' : '#64748b';
+          const rowBg = item.inPareto ? '#fff5f5' : 'transparent';
 
-      barsHtml += `
+          barsHtml += `
         <div style="margin-bottom:5px;padding:2px 0;
           background:${rowBg};border-radius:4px;">
           <div style="display:flex;justify-content:space-between;
@@ -1997,18 +1987,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
               ── 80% 기준선
             </span>
           </div>` : ''}`;
-    });
+        });
 
-    return `
+        return `
       <div style="min-width:160px;flex:1;background:#fff;
         border:1px solid #e2e8f0;border-radius:10px;
         padding:12px 10px;">
         ${header}
         ${barsHtml}
       </div>`;
-  }).join('');
+      }).join('');
 
-  div.innerHTML = `
+      div.innerHTML = `
     <div style="font-size:.78rem;color:#475569;margin-bottom:10px;">
       <span style="display:inline-block;width:10px;height:10px;
         background:#dc2626;border-radius:2px;
@@ -2020,7 +2010,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       ${teamCols}
     </div>
   `;
-};
+    };
 
     window.loadAdminData = async () => {
       document.querySelector('.danger-zone').classList.add('show');
@@ -2054,10 +2044,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     window.delDoc = async (sess, teamId, docId) => {
       if (!confirm('삭제하시겠습니까?')) return;
       try {
-           await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId));
-           alert("삭제되었습니다.");
-           loadAdminData();
-      } catch(e) { alert("삭제 실패 : " + e.message);}
+        await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId));
+        alert("삭제되었습니다.");
+        loadAdminData();
+      } catch (e) { alert("삭제 실패 : " + e.message); }
     };
 
     window.exportCSV = async () => {
@@ -2116,10 +2106,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         await deleteDoc(doc(db, 'course_configs', sess));
       }
       await setDoc(doc(db, 'settings', 'courses'), { list: [], activeList: [] });
-      
+
       localStorage.clear();   // 모든 로컬 저장 데이터 삭제
       sessionStorage.clear(); // 모든 세션 저장 데이터 삭제
-      
+
       alert('서버 데이터와 로컬 설정이 모두 초기화되었습니다. 페이지를 새로고침합니다.');
       location.reload();
     };

@@ -2074,14 +2074,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     window.exportCSV = async () => {
       if (!courseList.length) return alert('과정이 없습니다.');
-      
+
       // ===== 1. 설문 응답 데이터 영역 구성 =====
       let csv = '\uFEFF'; // BOM (엑셀 한글 깨짐 방지)
       csv += '========== [1. 설문 응답 데이터] ==========\n';
+      
+      // 💡 [해결 1] 범용적인 헤더명 사용. 요인명 대신 '요인1', '요인2'... 사용
       csv += '과정명,팀,제출시각,업종';
-
-      const headerFactors = QUESTIONS.construction.map(q => q.factor);
-      headerFactors.forEach(f => { csv += `,${f}(점수),${f}(가중점수)`; });
+      for(let i=1; i<=12; i++) {
+        csv += `,요인${i} 이름,요인${i}(점수),요인${i}(가중점수)`;
+      }
       csv += '\n';
 
       // 예방대책 데이터를 담아둘 임시 배열 (DB 조회를 한 번에 끝내기 위함)
@@ -2091,6 +2093,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         let cfg = { teamCount: 6, industry: 'construction' };
         try { const c = await getDoc(doc(db, 'course_configs', sess)); if (c.exists()) cfg = c.data(); } catch (e) { }
 
+        // 💡 현재 과정의 업종에 맞는 문항 순서(헤더) 가져오기
+        const industryKey = cfg.industry || 'construction';
+        const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
+        const currentFactors = qs.map(q => q.factor);
+
         for (let i = 1; i <= cfg.teamCount; i++) {
           const tid = `team_${i}`;
 
@@ -2099,11 +2106,21 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           snap.forEach(d => {
             const data = d.data();
             const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
-            let row = `"${sess}","${i}팀","${ts}","${cfg.industry || ''}"`;
+            let row = `"${sess}","${i}팀","${ts}","${industryKey}"`;
+            
+            // 💡 [해결 2] 현재 업종의 12개 요인 순서에 맞춰서 매핑하여 빈칸이나 밀림 현상 완벽 방지
             if (data.scores && Array.isArray(data.scores)) {
-              data.scores.forEach(s => {
-                row += `,${s.score || ''},${s.weighted || ''}`;
-              });
+                // 저장된 점수를 요인명(factor)을 키로 하는 맵으로 변환
+                const scoreMap = {};
+                data.scores.forEach(s => {
+                    scoreMap[s.factor] = s;
+                });
+
+                // 12개 요인을 순회하며 데이터 채우기
+                currentFactors.forEach(factorName => {
+                    const s = scoreMap[factorName];
+                    row += `,"${factorName}",${s ? s.score : ''},${s ? s.weighted : ''}`;
+                });
             }
             csv += row + '\n';
           });
@@ -2113,11 +2130,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           cmSnap.forEach(d => {
             const data = d.data();
             const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
-            
+
             // CSV 오류 방지: 사용자가 쉼표나 쌍따옴표, 줄바꿈을 입력했을 때 텍스트가 깨지지 않도록 처리
             let safeText = data.text || '';
             safeText = safeText.replace(/"/g, '""'); // 쌍따옴표 내부 처리
-            
+
             cmRows.push(`"${sess}","${i}팀","${ts}","${safeText}"`);
           });
         }

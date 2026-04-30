@@ -2074,20 +2074,28 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     window.exportCSV = async () => {
       if (!courseList.length) return alert('과정이 없습니다.');
-      let csv = '\uFEFF과정명,팀,제출시각,업종';
+      
+      // ===== 1. 설문 응답 데이터 영역 구성 =====
+      let csv = '\uFEFF'; // BOM (엑셀 한글 깨짐 방지)
+      csv += '========== [1. 설문 응답 데이터] ==========\n';
+      csv += '과정명,팀,제출시각,업종';
 
-      // 헤더: 건설업 기준 12개 요인명 (제조업도 동일 12개 구조)
       const headerFactors = QUESTIONS.construction.map(q => q.factor);
       headerFactors.forEach(f => { csv += `,${f}(점수),${f}(가중점수)`; });
       csv += '\n';
 
+      // 예방대책 데이터를 담아둘 임시 배열 (DB 조회를 한 번에 끝내기 위함)
+      let cmRows = [];
+
       for (const sess of courseList) {
         let cfg = { teamCount: 6, industry: 'construction' };
         try { const c = await getDoc(doc(db, 'course_configs', sess)); if (c.exists()) cfg = c.data(); } catch (e) { }
-        const qs = QUESTIONS[cfg.industry || 'construction'];
 
         for (let i = 1; i <= cfg.teamCount; i++) {
-          const snap = await getDocs(collection(db, 'sessions', sess, 'teams', `team_${i}`, 'submissions'));
+          const tid = `team_${i}`;
+
+          // [설문 응답 데이터 수집]
+          const snap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'));
           snap.forEach(d => {
             const data = d.data();
             const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
@@ -2099,10 +2107,31 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
             }
             csv += row + '\n';
           });
+
+          // [개선 및 예방대책 데이터 수집]
+          const cmSnap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'));
+          cmSnap.forEach(d => {
+            const data = d.data();
+            const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
+            
+            // CSV 오류 방지: 사용자가 쉼표나 쌍따옴표, 줄바꿈을 입력했을 때 텍스트가 깨지지 않도록 처리
+            let safeText = data.text || '';
+            safeText = safeText.replace(/"/g, '""'); // 쌍따옴표 내부 처리
+            
+            cmRows.push(`"${sess}","${i}팀","${ts}","${safeText}"`);
+          });
         }
       }
 
-      const fileName = `휴먼에러_데이터_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '').replace(/ /g, '')}.csv`;
+      // ===== 2. 개선 및 예방대책 데이터 영역 이어붙이기 =====
+      csv += '\n\n'; // 데이터를 확실히 구분하기 위해 두 줄 띄움
+      csv += '========== [2. 개선 및 예방대책 데이터] ==========\n';
+      csv += '과정명,팀,제출시각,개선 및 예방대책(텍스트)\n';
+      csv += cmRows.join('\n');
+      csv += '\n';
+
+      // ===== 3. CSV 파일 다운로드 =====
+      const fileName = `휴먼에러_통합데이터_${new Date().toLocaleDateString('ko-KR').replace(/\./g, '').replace(/ /g, '')}.csv`;
       const link = Object.assign(document.createElement('a'), {
         href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })),
         download: fileName,

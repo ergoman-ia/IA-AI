@@ -541,14 +541,14 @@
 
     .timer-display {
       font-size: 2rem;
-      font-weight: 0;
+      font-weight: 700;
       color: #dc2626;
       letter-spacing: 2px;
       font-variant-numeric: tabular-nums;
     }
 
     .timer-display.warning {
-      color: #d976;
+      color: #d97706;
     }
 
     .timer-display.safe {
@@ -1575,7 +1575,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <span style="font-size:.75rem;color:#94a3b8;margin-left:2px;">${item.pct}%</span>
       </td>`;
         }).join('');
-        const accColor = t.accuracy >=  ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
+        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
 
         summaryRows += `<tr>
       <td><strong>${t.name}_</strong>

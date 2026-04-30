@@ -1805,7 +1805,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (!currentDashSess) return;
 
       // 💡 관리자에게 데이터가 삭제된다는 것을 명확히 고지합니다.
-      if (!confirm('전체 설문 마감을 취소하시겠습니까?\n⚠️ 주의: 각 팀이 이미 제출한 [개선 및 예방대책] 데이터가 모두 초기화됩니다.')) return;
+      if (!confirm('전체 설문 마감을 취소하시겠습니까?\n마감을 취소하면 참가자가 추가로 설문에 응답할 수 있습니다.\n(다만, 기존 입력된 개선 및 예방대책은 그대로 보존됩니다.)')) return;
+
 
       try {
         let tCount = 6;
@@ -1816,20 +1817,12 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         for (let i = 1; i <= tCount; i++) {
           const tid = `team_${i}`;
 
-          // 1. 마감 상태 문서 삭제
           batch.push(deleteDoc(doc(db, 'sessions', currentDashSess, 'teams', tid, 'meta', 'status')));
-
-          // 2. 💡 해당 팀의 '개선 및 예방대책' 데이터 조회 후 일괄 삭제
-          const cmSnap = await getDocs(collection(db, 'sessions', currentDashSess, 'teams', tid, 'countermeasures'));
-          cmSnap.forEach(d => {
-            batch.push(deleteDoc(d.ref));
-          });
         }
 
-        // 3. DB에 일괄 전송하여 한 번에 처리
         await Promise.all(batch);
 
-        alert('전체 마감이 취소되었으며, 기존 대책 데이터가 안전하게 초기화되었습니다.');
+        alert('전체 마감이 취소되었습니다.\n다만, 기존 개선 및 예방대책 데이터는 그대로 보존되어 있습니다.');
 
         onDashCourseChange();
 
@@ -2128,9 +2121,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         let tCount = 6;
         try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
         for (let i = 1; i <= tCount; i++) {
-          const snap = await getDocs(collection(db, 'sessions', sess, 'teams', `team_${i}`, 'submissions'));
-          await Promise.all(snap.docs.map(d => deleteDoc(d.ref)));
-          try { await deleteDoc(doc(db, 'sessions', sess, 'teams', `team_${i}`, 'meta', 'status')); } catch (e) { }
+          const tid = `team_${i}`;          
+          const subSnap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'));
+          await Promise.all(subSnap.docs.map(d => deleteDoc(d.ref)));          
+          const cmSnap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'));
+          await Promise.all(cmSnap.docs.map(d => deleteDoc(d.ref)));
+          
+          try { await deleteDoc(doc(db, 'sessions', sess, 'teams', tid, 'meta', 'status')); } catch (e) { }
         }
         await deleteDoc(doc(db, 'course_configs', sess));
       }

@@ -541,14 +541,14 @@
 
     .timer-display {
       font-size: 2rem;
-      font-weight: 700;
+      font-weight: 0;
       color: #dc2626;
       letter-spacing: 2px;
       font-variant-numeric: tabular-nums;
     }
 
     .timer-display.warning {
-      color: #d97706;
+      color: #d976;
     }
 
     .timer-display.safe {
@@ -1575,13 +1575,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <span style="font-size:.75rem;color:#94a3b8;margin-left:2px;">${item.pct}%</span>
       </td>`;
         }).join('');
-        const accColor = t.accuracy >= 70 ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
+        const accColor = t.accuracy >=  ? '#16a34a' : t.accuracy >= 40 ? '#d97706' : '#dc2626';
 
         summaryRows += `<tr>
       <td><strong>${t.name}_</strong>
         <span style="font-size:.78rem;color:#64748b;">${t.cnt}명</span>
       </td>
-      <td><strong><span class="badge ${t.consensusRate >= 70 ? 'bg-green' : t.consensusRate >= 45 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></strong></td>
+      <td><strong><span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></strong></td>
       ${rankCols}
       <td><strong style="color:${accColor};">${t.accuracy}%</strong></td>
     </tr>`;
@@ -1972,7 +1972,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div style="font-size:.75rem;color:#64748b;margin-top:2px;">
           ${t.cnt}명 응답
         </div>
-        <span class="badge ${t.consensusRate >= 70 ? 'bg-green' : t.consensusRate >= 45 ? 'bg-amber' : 'bg-red'}"
+        <span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}"
           style="font-size:.68rem;padding:2px 6px;margin-top:4px;
           display:inline-block;">
           일치도 ${t.consensusRate}%

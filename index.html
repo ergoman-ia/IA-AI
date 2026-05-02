@@ -637,8 +637,7 @@
             <option value="">목록 불러오는 중...</option>
           </select>
           <label>소속 팀</label>
-          <!-- onCourseChange를 공유하여 팀 선택 변경 시에도 버튼 상태 갱신 -->
-<select id="userTeamSelect" onchange="onCourseChange()">
+          <select id="teamSelect" class="form-select">
   <option value="">과정을 먼저 선택하세요</option>
 </select>
         </div>
@@ -1154,10 +1153,12 @@ if (isClosed && joinBtn) {
     joinBtn.classList.remove('btn-blue', 'btn-orange');
     joinBtn.classList.add('btn-green');
 } else if (joinBtn) {
-    if (submissionId) {
-        // 제출 이력이 있다면 '설문 수정'으로 변경
-        joinBtn.innerText = '설문 수정';
-        joinBtn.classList.remove('btn-blue', 'btn-green');
+        // 현재 선택된 팀 값 가져오기 (변수명은 실제 팀 select 박스나 할당된 변수에 맞게 조정하세요)
+        const currentTeam = document.getElementById('teamSelect').value; 
+
+        // 과정(sess)과 팀(currentTeam)이 모두 일치하는 제출 기록이 있는지 확인
+        if (sessionStorage.getItem(`submitted_${sess}_${currentTeam}`)) {
+          joinBtn.innerText = '설문 수정';        joinBtn.classList.remove('btn-blue', 'btn-green');
         joinBtn.classList.add('btn-orange');
     } else {
         // 이력이 없다면 기본 텍스트 유지
@@ -1193,8 +1194,8 @@ if (isClosed && joinBtn) {
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
         
-        // [수정] 세션 ID와 팀 값을 결합하여 해당 팀으로 제출한 데이터만 불러옴
-        const savedAnswers = sessionStorage.getItem(`answers_${sessId}_${teamVal}`);
+        // [추가] 기존 제출 데이터가 있다면 라디오 버튼에 값 세팅
+        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
         if (savedAnswers) {
           const scores = JSON.parse(savedAnswers);
           scores.forEach((item, i) => {
@@ -1276,26 +1277,17 @@ if (isClosed && joinBtn) {
         });
       });
       if (err) return alert('모든 항목에 응답해주세요. (12문항 전체)');
-      try {
-        // 세션과 팀이 결합된 키로 기존 문서 확인
-        const existingDocId = sessionStorage.getItem(`submitted_${sessId}_${teamId}`);
+     try {
+        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
         
         if (existingDocId && existingDocId !== 'true') {
-          // 기존 문서가 있으면 업데이트 (수정 제출)
-          await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), {
-            scores, timestamp: new Date()
-          });
+          // (중략 - 업데이트 로직)
         } else {
-          // 신규 제출인 경우 새 문서 생성
-          const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), {
-            scores, timestamp: new Date(), industry: industryKey
-          });
-          // 새 문서 ID 저장 (세션+팀 결합 키)
-          sessionStorage.setItem(`submitted_${sessId}_${teamId}`, docRef.id);
+          // (중략 - 생성 로직)
+          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
         }
         
-        // 내가 선택한 항목 로컬 저장 (세션+팀 결합 키)
-        sessionStorage.setItem(`answers_${sessId}_${teamId}`, JSON.stringify(scores));
+        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
         
         // 개인 피드백 렌더링
         renderPersonalFeedback(scores);

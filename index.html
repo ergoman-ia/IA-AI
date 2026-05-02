@@ -660,7 +660,7 @@
           <div
             style="background:#fff7ed;padding:12px 14px;border-radius:8px;border-left:3px solid var(--w);font-size:.87rem;color:#78350f;margin-bottom:14px;line-height:1.6;">
             <strong>[안내]</strong> 아래 12가지 인적 요인이 이 사고에 얼마나 기여했는지 평가해 주세요.<br>
-            1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--d);font-weight:600;">수정 불가 — 꼼꼼히 확인 후 제출하세요.</span>
+            1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--s);font-weight:600;">제출 후에도 마감 전까지 수정이 가능합니다.</span>
           </div>
           <div id="progressBar" class="progress-strip">
             <span>응답 완료: <strong id="answeredCnt">0</strong> / 12</span>
@@ -1139,12 +1139,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       if (isClosed && joinBtn) {
         joinBtn.innerText = '개선 및 예방대책 입력';
-        joinBtn.classList.remove('btn-blue');
+        joinBtn.classList.remove('btn-blue', 'btn-orange');
         joinBtn.classList.add('btn-green');
       } else if (joinBtn) {
-        joinBtn.innerText = '휴먼에러 헌팅 시작';
-        joinBtn.classList.remove('btn-green');
-        joinBtn.classList.add('btn-blue');
+        // 이미 제출한 기록이 있는지 확인 (수정 모드)
+        if (sessionStorage.getItem(`submitted_${sess}`)) {
+          joinBtn.innerText = '설문 수정';
+          joinBtn.classList.remove('btn-blue', 'btn-green');
+          joinBtn.classList.add('btn-orange'); // 수정 버튼은 눈에 띄게 주황색으로
+        } else {
+          joinBtn.innerText = '휴먼에러 헌팅 시작';
+          joinBtn.classList.remove('btn-green', 'btn-orange');
+          joinBtn.classList.add('btn-blue');
+        }
       }
     };
 
@@ -1161,12 +1168,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 1. 관리자가 설문을 마감했는지(2단계 오픈) 먼저 확인합니다.
       const closed = await checkIfClosed(sessId, teamVal);
 
-      // 2. 💡 수정 완료: 설문 진행 중(!closed)인데, 이미 제출한 기록이 있을 때만 튕겨냅니다!
-      if (!closed && sessionStorage.getItem(`submitted_${sessId}`)) {
-        return alert('이미 설문을 제출하셨습니다.\n강사의 안내를 기다려주세요.');
-      }
-
-      sessionStorage.setItem('sim_sess', sessId);
+     sessionStorage.setItem('sim_sess', sessId);
       sessionStorage.setItem('sim_team', teamVal);
       sessionStorage.setItem('sim_teamText', teamText);
       sessionStorage.setItem('sim_scenario', cfg.scenario || 'con1');
@@ -1177,6 +1179,20 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         showScreen('surveyScreen');
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        
+        // [추가] 기존 제출 데이터가 있다면 라디오 버튼에 값 세팅
+        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
+        if (savedAnswers) {
+          const scores = JSON.parse(savedAnswers);
+          scores.forEach((item, i) => {
+            const radio = document.getElementById(`q${i}_${item.score}`);
+            if (radio) radio.checked = true;
+          });
+          onAnswerChange(); // 진행률 및 응답 개수 UI 즉시 갱신
+          document.getElementById('surveyBadge').innerText = '설문 수정 중';
+          document.getElementById('surveyBadge').className = 'badge bg-amber';
+        }
+        
         showScreen('surveyScreen');
       }
     };
@@ -1248,14 +1264,31 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
       if (err) return alert('모든 항목에 응답해주세요. (12문항 전체)');
       try {
-        await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), {
-          scores, timestamp: new Date(), industry: industryKey
-        });
-        // 재제출 방지 플래그
-        sessionStorage.setItem(`submitted_${sessId}`, 'true');
+        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
+        
+        if (existingDocId && existingDocId !== 'true') {
+          // 기존 문서가 있으면 업데이트 (수정 제출)
+          await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), {
+            scores, timestamp: new Date() // 수정 시간 갱신
+          });
+        } else {
+          // 신규 제출인 경우 새 문서 생성
+          const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), {
+            scores, timestamp: new Date(), industry: industryKey
+          });
+          // 새 문서 ID 저장 (다음 수정 시 활용)
+          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+        }
+        
+        // 내가 선택한 항목 로컬 저장 (수정 진입 시 값을 띄워주기 위함)
+        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+        
         // 개인 피드백 렌더링
         renderPersonalFeedback(scores);
         showScreen('doneScreen');
+        
+        // 수정 완료 후 초기 화면의 참가 버튼 상태 갱신
+        if (typeof onCourseChange === 'function') onCourseChange();
       } catch (e) { alert('전송 실패: ' + e.message); }
     };
 

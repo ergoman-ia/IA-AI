@@ -660,7 +660,7 @@
           <div
             style="background:#fff7ed;padding:12px 14px;border-radius:8px;border-left:3px solid var(--w);font-size:.87rem;color:#78350f;margin-bottom:14px;line-height:1.6;">
             <strong>[안내]</strong> 아래 12가지 인적 요인이 이 사고에 얼마나 기여했는지 평가해 주세요.<br>
-            1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--s);font-weight:600;">제출 후에도 마감 전까지 수정이 가능합니다.</span>
+            1점(기여 없음) ~ 5점(매우 큰 기여) / <span style="color:var(--d);font-weight:600;">수정 불가 — 꼼꼼히 확인 후 제출하세요.</span>
           </div>
           <div id="progressBar" class="progress-strip">
             <span>응답 완료: <strong id="answeredCnt">0</strong> / 12</span>
@@ -1134,19 +1134,26 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
 
+      // [수정된 로직] 한 과정당 하나의 팀에만 응답하도록 팀 고정
+      const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`);
+      if (submittedTeam) {
+        tSel.value = submittedTeam; // 기존 응답 팀으로 자동 선택
+        tSel.disabled = true;       // 다른 팀 선택 불가 처리
+      } else {
+        tSel.disabled = false;      // 신규 진입 시 선택 가능하게 해제
+      }
+
       // [추가된 로직] 과정 마감 여부에 따라 버튼 바탕색과 텍스트 변경
-      const isClosed = await checkIfClosed(sess, 'team_1');
+      // (기존에는 무조건 1팀 기준이었으나, 제출한 팀이 있다면 해당 팀 기준으로 마감 여부 확인)
+      const isClosed = await checkIfClosed(sess, submittedTeam || 'team_1');
 
       if (isClosed && joinBtn) {
         joinBtn.innerText = '개선 및 예방대책 입력';
         joinBtn.classList.remove('btn-blue', 'btn-orange');
         joinBtn.classList.add('btn-green');
       } else if (joinBtn) {
-        // 현재 선택된 팀 값 가져오기 (변수명은 실제 팀 select 박스나 할당된 변수에 맞게 조정하세요)
-        const currentTeam = document.getElementById('teamSelect').value; 
-
-        // 과정(sess)과 팀(currentTeam)이 모두 일치하는 제출 기록이 있는지 확인
-        if (sessionStorage.getItem(`submitted_${sess}_${currentTeam}`)) {
+        // 이미 제출한 기록이 있는지 확인 (수정 모드)
+        if (sessionStorage.getItem(`submitted_${sess}`)) {
           joinBtn.innerText = '설문 수정';
           joinBtn.classList.remove('btn-blue', 'btn-green');
           joinBtn.classList.add('btn-orange'); // 수정 버튼은 눈에 띄게 주황색으로
@@ -1183,8 +1190,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
         
-        // [수정] 세션 ID와 팀 값을 결합하여 해당 팀으로 제출한 데이터만 불러옴
-        const savedAnswers = sessionStorage.getItem(`answers_${sessId}_${teamVal}`);
+        // [추가] 기존 제출 데이터가 있다면 라디오 버튼에 값 세팅
+        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
         if (savedAnswers) {
           const scores = JSON.parse(savedAnswers);
           scores.forEach((item, i) => {
@@ -1285,6 +1292,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         
         // 내가 선택한 항목 로컬 저장 (수정 진입 시 값을 띄워주기 위함)
         sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+        // [수정된 로직] 응답한 팀 정보도 함께 저장하여 팀 변경 방지
+        sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
         
         // 개인 피드백 렌더링
         renderPersonalFeedback(scores);

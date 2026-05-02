@@ -1183,8 +1183,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
         
-        // [추가] 기존 제출 데이터가 있다면 라디오 버튼에 값 세팅
-        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
+        // [수정] 세션 ID와 팀 값을 결합하여 해당 팀으로 제출한 데이터만 불러옴
+        const savedAnswers = sessionStorage.getItem(`answers_${sessId}_${teamVal}`);
         if (savedAnswers) {
           const scores = JSON.parse(savedAnswers);
           scores.forEach((item, i) => {

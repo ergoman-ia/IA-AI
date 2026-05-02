@@ -1551,7 +1551,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
             // 개인별 가중점수 내림차순 정렬 후 상위 3개 추출
             myScores.sort((a, b) => b.val - a.val);
-            const myTopNames = myScores.slice(0, 4).map(x => x.name);
+            const myTopNames = myScores.slice(0, 3).map(x => x.name);
             teamIndivParetos.push(...myTopNames);
           }
         });
@@ -1932,7 +1932,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
             // 개인별 가중점수 내림차순 정렬 후 상위 3개 추출
             myScores.sort((a, b) => b.val - a.val);
-            const myTopNames = myScores.slice(0, 4).map(x => x.name);
+            const myTopNames = myScores.slice(0, 3).map(x => x.name);
             teamIndivParetos.push(...myTopNames);
           }
         });

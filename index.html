@@ -1267,25 +1267,20 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
       if (err) return alert('모든 항목에 응답해주세요. (12문항 전체)');
       try {
-        // 세션과 팀이 결합된 키로 기존 문서 확인
-        const existingDocId = sessionStorage.getItem(`submitted_${sessId}_${teamId}`);
+        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
         
         if (existingDocId && existingDocId !== 'true') {
           // 기존 문서가 있으면 업데이트 (수정 제출)
           await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), {
-            scores, timestamp: new Date()
+            scores, timestamp: new Date() // 수정 시간 갱신
           });
         } else {
           // 신규 제출인 경우 새 문서 생성
           const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), {
             scores, timestamp: new Date(), industry: industryKey
           });
-          // 새 문서 ID 저장 (세션+팀 결합 키)
-          sessionStorage.setItem(`submitted_${sessId}_${teamId}`, docRef.id);
-        }
-        
-        // 내가 선택한 항목 로컬 저장 (세션+팀 결합 키)
-        sessionStorage.setItem(`answers_${sessId}_${teamId}`, JSON.stringify(scores));
+          // 새 문서 ID 저장 (다음 수정 시 활용)
+          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
         }
         
         // 내가 선택한 항목 로컬 저장 (수정 진입 시 값을 띄워주기 위함)

@@ -1152,16 +1152,42 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         joinBtn.classList.remove('btn-blue', 'btn-orange');
         joinBtn.classList.add('btn-green');
       } else if (joinBtn) {
-        // 이미 제출한 기록이 있는지 확인 (수정 모드)
-        if (sessionStorage.getItem(`submitted_${sess}`)) {
-          joinBtn.innerText = '설문 수정';
-          joinBtn.classList.remove('btn-blue', 'btn-green');
-          joinBtn.classList.add('btn-orange'); // 수정 버튼은 눈에 띄게 주황색으로
-        } else {
-          joinBtn.innerText = '휴먼에러 헌팅 시작';
-          joinBtn.classList.remove('btn-green', 'btn-orange');
-          joinBtn.classList.add('btn-blue');
-        }
+        // sessionStorage에 제출 기록이 있으면 Firestore에 실제 존재하는지 확인
+const existingDocId = sessionStorage.getItem(`submitted_${sess}`);
+if (existingDocId && existingDocId !== 'true') {
+  const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`) || 'team_1';
+  try {
+    const docSnap = await getDoc(
+      doc(db, 'sessions', sess, 'teams', submittedTeam, 'submissions', existingDocId)
+    );
+    if (docSnap.exists()) {
+      // DB에 실제 존재 → 수정 모드
+      joinBtn.innerText = '설문 수정';
+      joinBtn.classList.remove('btn-blue', 'btn-green');
+      joinBtn.classList.add('btn-orange');
+    } else {
+      // DB에서 삭제됨 → sessionStorage 초기화 후 신규 입력 모드로 전환
+      sessionStorage.removeItem(`submitted_${sess}`);
+      sessionStorage.removeItem(`submitted_team_${sess}`);
+      sessionStorage.removeItem(`answers_${sess}`);
+      joinBtn.innerText = '휴먼에러 헌팅 시작';
+      joinBtn.classList.remove('btn-green', 'btn-orange');
+      joinBtn.classList.add('btn-blue');
+    }
+  } catch (e) {
+    // 오류 시 안전하게 신규 모드로 전환
+    sessionStorage.removeItem(`submitted_${sess}`);
+    sessionStorage.removeItem(`submitted_team_${sess}`);
+    sessionStorage.removeItem(`answers_${sess}`);
+    joinBtn.innerText = '휴먼에러 헌팅 시작';
+    joinBtn.classList.remove('btn-green', 'btn-orange');
+    joinBtn.classList.add('btn-blue');
+  }
+} else {
+  joinBtn.innerText = '휴먼에러 헌팅 시작';
+  joinBtn.classList.remove('btn-green', 'btn-orange');
+  joinBtn.classList.add('btn-blue');
+}
       }
     };
 
@@ -1274,34 +1300,43 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
       if (err) return alert('모든 항목에 응답해주세요. (12문항 전체)');
       try {
-        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
-        
-        if (existingDocId && existingDocId !== 'true') {
-          // 기존 문서가 있으면 업데이트 (수정 제출)
-          await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), {
-            scores, timestamp: new Date() // 수정 시간 갱신
-          });
-        } else {
-          // 신규 제출인 경우 새 문서 생성
-          const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), {
-            scores, timestamp: new Date(), industry: industryKey
-          });
-          // 새 문서 ID 저장 (다음 수정 시 활용)
-          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
-        }
-        
-        // 내가 선택한 항목 로컬 저장 (수정 진입 시 값을 띄워주기 위함)
-        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
-        // [수정된 로직] 응답한 팀 정보도 함께 저장하여 팀 변경 방지
-        sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
-        
-        // 개인 피드백 렌더링
-        renderPersonalFeedback(scores);
-        showScreen('doneScreen');
-        
-        // 수정 완료 후 초기 화면의 참가 버튼 상태 갱신
-        if (typeof onCourseChange === 'function') onCourseChange();
-      } catch (e) { alert('전송 실패: ' + e.message); }
+  const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
+  
+  if (existingDocId && existingDocId !== 'true') {
+    // 기존 문서가 DB에 실제 존재하는지 먼저 확인
+    const docSnap = await getDoc(
+      doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId)
+    );
+    
+    if (docSnap.exists()) {
+      // DB에 존재하면 업데이트
+      await updateDoc(
+        doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId),
+        { scores, timestamp: new Date() }
+      );
+    } else {
+      // DB에서 삭제된 경우 → 신규 문서로 생성
+      const docRef = await addDoc(
+        collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
+        { scores, timestamp: new Date(), industry: industryKey }
+      );
+      sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+    }
+  } else {
+    // 신규 제출
+    const docRef = await addDoc(
+      collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
+      { scores, timestamp: new Date(), industry: industryKey }
+    );
+    sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+  }
+  
+  sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+  sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
+  renderPersonalFeedback(scores);
+  showScreen('doneScreen');
+  if (typeof onCourseChange === 'function') onCourseChange();
+} catch (e) { alert('전송 실패: ' + e.message); }
     };
 
     function renderPersonalFeedback(scores) {

@@ -1623,21 +1623,21 @@ if (existingDocId && existingDocId !== 'true') {
           transcendentCount = teamIndivAccuracies.filter(acc => acc > teamTotalAcc).length; // 초월자 카운트
         }
 
-        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
+        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (팀 최종 Top 3 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-          // 1. 파레토 80% 그룹(붉은 막대)에 해당하는 요인들의 이름만 추출
-          const coreNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
+          // 1. 위에서 이미 추출된 팀 최종 1~3순위 요인의 이름만 가져옴
+          const top3Names = top3.map(x => x.name);
           
-          // 2. 전체 팀원의 선택 중 파레토 핵심 요인에 속하는 표의 개수 카운트
+          // 2. 전체 팀원의 선택 중 Top 3에 해당하는 표의 개수 카운트
           let focusCount = 0;
           teamIndivParetos.forEach(item => {
-            if (coreNames.includes(item)) {
+            if (top3Names.includes(item)) {
               focusCount++;
             }
           });
 
-          // 3. (파레토 핵심 요인에 집중된 표 / 전체 개인 선택 수) * 100
+          // 3. (Top 3에 집중된 표 / 전체 개인 선택 수) * 100
           consensusRate = Math.round((focusCount / teamIndivParetos.length) * 100);
         }
 

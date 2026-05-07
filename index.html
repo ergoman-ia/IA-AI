@@ -1153,41 +1153,41 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         joinBtn.classList.add('btn-green');
       } else if (joinBtn) {
         // sessionStorage에 제출 기록이 있으면 Firestore에 실제 존재하는지 확인
-const existingDocId = sessionStorage.getItem(`submitted_${sess}`);
-if (existingDocId && existingDocId !== 'true') {
-  const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`) || 'team_1';
-  try {
-    const docSnap = await getDoc(
-      doc(db, 'sessions', sess, 'teams', submittedTeam, 'submissions', existingDocId)
-    );
-    if (docSnap.exists()) {
-      // DB에 실제 존재 → 수정 모드
-      joinBtn.innerText = '설문 수정';
-      joinBtn.classList.remove('btn-blue', 'btn-green');
-      joinBtn.classList.add('btn-orange');
-    } else {
-      // DB에서 삭제됨 → sessionStorage 초기화 후 신규 입력 모드로 전환
-      sessionStorage.removeItem(`submitted_${sess}`);
-      sessionStorage.removeItem(`submitted_team_${sess}`);
-      sessionStorage.removeItem(`answers_${sess}`);
-      joinBtn.innerText = '휴먼에러 헌팅 시작';
-      joinBtn.classList.remove('btn-green', 'btn-orange');
-      joinBtn.classList.add('btn-blue');
-    }
-  } catch (e) {
-    // 오류 시 안전하게 신규 모드로 전환
-    sessionStorage.removeItem(`submitted_${sess}`);
-    sessionStorage.removeItem(`submitted_team_${sess}`);
-    sessionStorage.removeItem(`answers_${sess}`);
-    joinBtn.innerText = '휴먼에러 헌팅 시작';
-    joinBtn.classList.remove('btn-green', 'btn-orange');
-    joinBtn.classList.add('btn-blue');
-  }
-} else {
-  joinBtn.innerText = '휴먼에러 헌팅 시작';
-  joinBtn.classList.remove('btn-green', 'btn-orange');
-  joinBtn.classList.add('btn-blue');
-}
+        const existingDocId = sessionStorage.getItem(`submitted_${sess}`);
+        if (existingDocId && existingDocId !== 'true') {
+          const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`) || 'team_1';
+          try {
+            const docSnap = await getDoc(
+              doc(db, 'sessions', sess, 'teams', submittedTeam, 'submissions', existingDocId)
+            );
+            if (docSnap.exists()) {
+              // DB에 실제 존재 → 수정 모드
+              joinBtn.innerText = '설문 수정';
+              joinBtn.classList.remove('btn-blue', 'btn-green');
+              joinBtn.classList.add('btn-orange');
+            } else {
+              // DB에서 삭제됨 → sessionStorage 초기화 후 신규 입력 모드로 전환
+              sessionStorage.removeItem(`submitted_${sess}`);
+              sessionStorage.removeItem(`submitted_team_${sess}`);
+              sessionStorage.removeItem(`answers_${sess}`);
+              joinBtn.innerText = '휴먼에러 헌팅 시작';
+              joinBtn.classList.remove('btn-green', 'btn-orange');
+              joinBtn.classList.add('btn-blue');
+            }
+          } catch (e) {
+            // 오류 시 안전하게 신규 모드로 전환
+            sessionStorage.removeItem(`submitted_${sess}`);
+            sessionStorage.removeItem(`submitted_team_${sess}`);
+            sessionStorage.removeItem(`answers_${sess}`);
+            joinBtn.innerText = '휴먼에러 헌팅 시작';
+            joinBtn.classList.remove('btn-green', 'btn-orange');
+            joinBtn.classList.add('btn-blue');
+          }
+        } else {
+          joinBtn.innerText = '휴먼에러 헌팅 시작';
+          joinBtn.classList.remove('btn-green', 'btn-orange');
+          joinBtn.classList.add('btn-blue');
+        }
       }
     };
 
@@ -1215,7 +1215,7 @@ if (existingDocId && existingDocId !== 'true') {
         showScreen('surveyScreen');
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
-        
+
         // [추가] 기존 제출 데이터가 있다면 라디오 버튼에 값 세팅
         const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
         if (savedAnswers) {
@@ -1228,7 +1228,7 @@ if (existingDocId && existingDocId !== 'true') {
           document.getElementById('surveyBadge').innerText = '설문 수정 중';
           document.getElementById('surveyBadge').className = 'badge bg-amber';
         }
-        
+
         showScreen('surveyScreen');
       }
     };
@@ -1300,43 +1300,43 @@ if (existingDocId && existingDocId !== 'true') {
       });
       if (err) return alert('모든 항목에 응답해주세요. (12문항 전체)');
       try {
-  const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
-  
-  if (existingDocId && existingDocId !== 'true') {
-    // 기존 문서가 DB에 실제 존재하는지 먼저 확인
-    const docSnap = await getDoc(
-      doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId)
-    );
-    
-    if (docSnap.exists()) {
-      // DB에 존재하면 업데이트
-      await updateDoc(
-        doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId),
-        { scores, timestamp: new Date() }
-      );
-    } else {
-      // DB에서 삭제된 경우 → 신규 문서로 생성
-      const docRef = await addDoc(
-        collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
-        { scores, timestamp: new Date(), industry: industryKey }
-      );
-      sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
-    }
-  } else {
-    // 신규 제출
-    const docRef = await addDoc(
-      collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
-      { scores, timestamp: new Date(), industry: industryKey }
-    );
-    sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
-  }
-  
-  sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
-  sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
-  renderPersonalFeedback(scores);
-  showScreen('doneScreen');
-  if (typeof onCourseChange === 'function') onCourseChange();
-} catch (e) { alert('전송 실패: ' + e.message); }
+        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
+
+        if (existingDocId && existingDocId !== 'true') {
+          // 기존 문서가 DB에 실제 존재하는지 먼저 확인
+          const docSnap = await getDoc(
+            doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId)
+          );
+
+          if (docSnap.exists()) {
+            // DB에 존재하면 업데이트
+            await updateDoc(
+              doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId),
+              { scores, timestamp: new Date() }
+            );
+          } else {
+            // DB에서 삭제된 경우 → 신규 문서로 생성
+            const docRef = await addDoc(
+              collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
+              { scores, timestamp: new Date(), industry: industryKey }
+            );
+            sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+          }
+        } else {
+          // 신규 제출
+          const docRef = await addDoc(
+            collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'),
+            { scores, timestamp: new Date(), industry: industryKey }
+          );
+          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+        }
+
+        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+        sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
+        renderPersonalFeedback(scores);
+        showScreen('doneScreen');
+        if (typeof onCourseChange === 'function') onCourseChange();
+      } catch (e) { alert('전송 실패: ' + e.message); }
     };
 
     function renderPersonalFeedback(scores) {
@@ -1593,9 +1593,9 @@ if (existingDocId && existingDocId !== 'true') {
             // 💡 개인별 정확도 계산 (정답지가 4개여도 상위 3개만 고르므로 분모를 최대 3으로 설정)
             const indivMatchCnt = myTopNames.filter(n => answerKeys.includes(n)).length;
             const maxPossibleHits = Math.min(3, answerKeys.length);
-            const indivAcc = answerKeys.length > 0 && maxPossibleHits > 0 
-                             ? Math.round((indivMatchCnt / maxPossibleHits) * 100) 
-                             : 0;
+            const indivAcc = answerKeys.length > 0 && maxPossibleHits > 0
+              ? Math.round((indivMatchCnt / maxPossibleHits) * 100)
+              : 0;
             teamIndivAccuracies.push(indivAcc);
           }
         });
@@ -1603,7 +1603,7 @@ if (existingDocId && existingDocId !== 'true') {
         const indexed = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }))
           .sort((a, b) => b.val - a.val);
         const tot = indexed.reduce((s, x) => s + x.val, 0);
-        
+
         // TOP3 추출
         const top3 = indexed.slice(0, 3).map(x => ({
           name: x.name,
@@ -1623,21 +1623,22 @@ if (existingDocId && existingDocId !== 'true') {
           transcendentCount = teamIndivAccuracies.filter(acc => acc > teamTotalAcc).length; // 초월자 카운트
         }
 
-        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (팀 최종 Top 3 요인에 의견이 집중된 비율)
+        // 💡 [통일된 공식] 파레토 80% 그룹 도출
+        let cum = 0, paretoIdx = -1;
+        for (let j = 0; j < indexed.length; j++) {
+          cum += indexed[j].val;
+          if (tot > 0 && cum / tot >= 0.80 && paretoIdx === -1) paretoIdx = j;
+        }
+        if (paretoIdx === -1) paretoIdx = indexed.length - 1; // 방어 로직
+        const coreNames = indexed.slice(0, paretoIdx + 1).map(x => x.name);
+
+        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-          // 1. 위에서 이미 추출된 팀 최종 1~3순위 요인의 이름만 가져옴
-          const top3Names = top3.map(x => x.name);
-          
-          // 2. 전체 팀원의 선택 중 Top 3에 해당하는 표의 개수 카운트
           let focusCount = 0;
           teamIndivParetos.forEach(item => {
-            if (top3Names.includes(item)) {
-              focusCount++;
-            }
+            if (coreNames.includes(item)) focusCount++;
           });
-
-          // 3. (Top 3에 집중된 표 / 전체 개인 선택 수) * 100
           consensusRate = Math.round((focusCount / teamIndivParetos.length) * 100);
         }
 
@@ -2010,18 +2011,11 @@ if (existingDocId && existingDocId !== 'true') {
         // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-          // 1. 파레토 80% 그룹(붉은 막대)에 해당하는 요인들의 이름만 추출
           const coreNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
-          
-          // 2. 전체 팀원의 선택 중 파레토 핵심 요인에 속하는 표의 개수 카운트
           let focusCount = 0;
           teamIndivParetos.forEach(item => {
-            if (coreNames.includes(item)) {
-              focusCount++;
-            }
+            if (coreNames.includes(item)) focusCount++;
           });
-
-          // 3. (파레토 핵심 요인에 집중된 표 / 전체 개인 선택 수) * 100
           consensusRate = Math.round((focusCount / teamIndivParetos.length) * 100);
         }
 
@@ -2167,10 +2161,10 @@ if (existingDocId && existingDocId !== 'true') {
       // ===== 1. 설문 응답 데이터 영역 구성 =====
       let csv = '\uFEFF'; // BOM (엑셀 한글 깨짐 방지)
       csv += '========== [1. 설문 응답 데이터] ==========\n';
-      
+
       // 💡 [해결 1] 범용적인 헤더명 사용. 요인명 대신 '요인1', '요인2'... 사용
       csv += '과정명,팀,제출시각,업종';
-      for(let i=1; i<=12; i++) {
+      for (let i = 1; i <= 12; i++) {
         csv += `,요인${i} 이름,요인${i}(점수),요인${i}(가중점수)`;
       }
       csv += '\n';
@@ -2196,20 +2190,20 @@ if (existingDocId && existingDocId !== 'true') {
             const data = d.data();
             const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
             let row = `"${sess}","${i}팀","${ts}","${industryKey}"`;
-            
+
             // 💡 [해결 2] 현재 업종의 12개 요인 순서에 맞춰서 매핑하여 빈칸이나 밀림 현상 완벽 방지
             if (data.scores && Array.isArray(data.scores)) {
-                // 저장된 점수를 요인명(factor)을 키로 하는 맵으로 변환
-                const scoreMap = {};
-                data.scores.forEach(s => {
-                    scoreMap[s.factor] = s;
-                });
+              // 저장된 점수를 요인명(factor)을 키로 하는 맵으로 변환
+              const scoreMap = {};
+              data.scores.forEach(s => {
+                scoreMap[s.factor] = s;
+              });
 
-                // 12개 요인을 순회하며 데이터 채우기
-                currentFactors.forEach(factorName => {
-                    const s = scoreMap[factorName];
-                    row += `,"${factorName}",${s ? s.score : ''},${s ? s.weighted : ''}`;
-                });
+              // 12개 요인을 순회하며 데이터 채우기
+              currentFactors.forEach(factorName => {
+                const s = scoreMap[factorName];
+                row += `,"${factorName}",${s ? s.score : ''},${s ? s.weighted : ''}`;
+              });
             }
             csv += row + '\n';
           });

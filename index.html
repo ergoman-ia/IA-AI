@@ -1623,25 +1623,22 @@ if (existingDocId && existingDocId !== 'true') {
           transcendentCount = teamIndivAccuracies.filter(acc => acc > teamTotalAcc).length; // 초월자 카운트
         }
 
-        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (2명 이상 중복 선택된 요인의 합 / 전체 선택 수)
+        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (팀 최종 Top 3 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-          // 1. 요인별 선택 빈도수 집계
-          const freqMap = {};
+          // 1. 위에서 이미 추출된 팀 최종 1~3순위 요인의 이름만 가져옴
+          const top3Names = top3.map(x => x.name);
+          
+          // 2. 전체 팀원의 선택 중 Top 3에 해당하는 표의 개수 카운트
+          let focusCount = 0;
           teamIndivParetos.forEach(item => {
-            freqMap[item] = (freqMap[item] || 0) + 1;
+            if (top3Names.includes(item)) {
+              focusCount++;
+            }
           });
 
-          // 2. 혼자 고른 것 제외, 선택 인원이 2명 이상인 요인의 총 선택 수 합산
-          let overlapSum = 0;
-          for (const key in freqMap) {
-            if (freqMap[key] >= 2) {
-              overlapSum += freqMap[key];
-            }
-          }
-
-          // 3. 일치도 비율 계산
-          consensusRate = Math.round((overlapSum / teamIndivParetos.length) * 100);
+          // 3. (Top 3에 집중된 표 / 전체 개인 선택 수) * 100
+          consensusRate = Math.round((focusCount / teamIndivParetos.length) * 100);
         }
 
         allTeamSummary.push({ name: `${i}팀`, cnt, top3, accuracy: teamTotalAcc, masterCount, transcendentCount, consensusRate });
@@ -2010,25 +2007,22 @@ if (existingDocId && existingDocId !== 'true') {
 
         // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
         const topNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
-        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (2명 이상 중복 선택된 요인의 합 / 전체 선택 수)
+        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
-          // 1. 요인별 선택 빈도수 집계
-          const freqMap = {};
+          // 1. 파레토 80% 그룹(붉은 막대)에 해당하는 요인들의 이름만 추출
+          const coreNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
+          
+          // 2. 전체 팀원의 선택 중 파레토 핵심 요인에 속하는 표의 개수 카운트
+          let focusCount = 0;
           teamIndivParetos.forEach(item => {
-            freqMap[item] = (freqMap[item] || 0) + 1;
+            if (coreNames.includes(item)) {
+              focusCount++;
+            }
           });
 
-          // 2. 혼자 고른 것 제외, 선택 인원이 2명 이상인 요인의 총 선택 수 합산
-          let overlapSum = 0;
-          for (const key in freqMap) {
-            if (freqMap[key] >= 2) {
-              overlapSum += freqMap[key];
-            }
-          }
-
-          // 3. 일치도 비율 계산
-          consensusRate = Math.round((overlapSum / teamIndivParetos.length) * 100);
+          // 3. (파레토 핵심 요인에 집중된 표 / 전체 개인 선택 수) * 100
+          consensusRate = Math.round((focusCount / teamIndivParetos.length) * 100);
         }
 
         teamResults.push({

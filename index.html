@@ -1842,8 +1842,7 @@ if (existingDocId && existingDocId !== 'true') {
       if (!card) return;
       const cnt = snap.docs.length;
       let statusClass, icon;
-      if (cnt > 4) { statusClass = 'status-done'; icon = '✅'; }
-      else if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
+      if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
       else { statusClass = 'status-empty'; icon = '⏳'; }
       const sel = card.classList.contains('selected');
       card.className = `team-card ${statusClass}${sel ? ' selected' : ''}`;

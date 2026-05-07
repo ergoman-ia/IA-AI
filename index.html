@@ -1623,19 +1623,11 @@ if (existingDocId && existingDocId !== 'true') {
           transcendentCount = teamIndivAccuracies.filter(acc => acc > teamTotalAcc).length; // 초월자 카운트
         }
 
-        // 💡 [추가] 이 함수에는 paretoIdx가 없으므로 기준선을 먼저 계산해 줍니다.
-        let cum = 0, paretoIdx = -1;
-        for (let j = 0; j < indexed.length; j++) {
-          cum += indexed[j].val;
-          if (tot > 0 && cum / tot >= 0.80 && paretoIdx === -1) paretoIdx = j;
-        }
-        if (paretoIdx === -1) paretoIdx = indexed.length - 1; // 방어 로직
-
+        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
           // 1. 파레토 80% 그룹(붉은 막대)에 해당하는 요인들의 이름만 추출
-          // (주의: 여기서는 변수명이 sorted가 아니라 indexed 입니다!)
-          const coreNames = indexed.slice(0, paretoIdx + 1).map(x => x.name);
+          const coreNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
           
           // 2. 전체 팀원의 선택 중 파레토 핵심 요인에 속하는 표의 개수 카운트
           let focusCount = 0;
@@ -1847,7 +1839,8 @@ if (existingDocId && existingDocId !== 'true') {
       if (!card) return;
       const cnt = snap.docs.length;
       let statusClass, icon;
-      if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
+      if (cnt > 4) { statusClass = 'status-done'; icon = '✅'; }
+      else if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
       else { statusClass = 'status-empty'; icon = '⏳'; }
       const sel = card.classList.contains('selected');
       card.className = `team-card ${statusClass}${sel ? ' selected' : ''}`;
@@ -2012,7 +2005,9 @@ if (existingDocId && existingDocId !== 'true') {
           pct: total > 0 ? Math.round(item.val / total * 100) : 0,
           inPareto: j <= paretoIdx
         }));
-       
+
+        // 💡 [전문가 공식 반영] 팀원 각자의 파레토 요인들이 팀 최종 요인과 얼마나 일치하는가?
+        const topNames = sorted.slice(0, paretoIdx + 1).map(x => x.name);
         // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (파레토 80% 핵심 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {

@@ -2163,10 +2163,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const expertCount = team.expertCount || 0;
       const agreement = team.agreement || 0;
 
-      if (expertCount > 0 && agreement >= 70 && accuracy < 80) return "⚠️ 소수 의견 경청 및 소통 촉진 필요";
-      if (expertCount >= 2) return "🌟 집단 지성 발휘 및 시너지 극대화";
-      if (accuracy >= 60 && accuracy < 75 && expertCount === 0) return "🧭 방향 설정 및 시야 확장 리더 필요";
-      if (accuracy < 65 && agreement < 70) return "🚨 팀원 간 격차 해소 및 밀착 관리 필요";
+      if (expertCount > 0 && agreement >= 70 && accuracy < 80) return "💬 소수 의견 경청 후 소통 촉진";
+      if (expertCount >= 2) return "🎯 이미 정답을 품은 팀";
+      if (accuracy >= 60 && accuracy < 75 && expertCount === 0) return "🧭 절반은 맞았다, 방향타가 없다";
+      if (accuracy < 65 && agreement < 70) return "🔀 제각각 — 밀착 관리 필요";
 
       return "✅ 균형 잡힌 팀워크 유지";
     }

@@ -582,10 +582,17 @@
         <div class="grid2">
           <div class="card" style="margin:0;border-left:4px solid var(--a);">
             <h4 style="color:var(--a);margin-bottom:14px;">교과과정 및 팀 설정</h4>
-            <label>과정명</label>
-            <input type="text" id="newCourseNm" placeholder="예: 2024_안전교육1차">
-            <label>팀 수</label>
-            <input type="number" id="newTeamCnt" value="6" min="1" max="20">
+            
+            <div style="display: flex; gap: 12px;">
+              <div style="flex: 3;">
+                <label>과정명</label>
+                <input type="text" id="newCourseNm" placeholder="예: 2024_안전교육1차">
+              </div>
+              <div style="flex: 1;">
+                <label>팀 수</label>
+                <input type="number" id="newTeamCnt" value="6" min="1" max="20">
+              </div>
+            </div>
             <label>사고 시나리오</label>
             <select id="newScenario">
               <option value="con1">건설1 — 비계 해체 추락 아차사고</option>

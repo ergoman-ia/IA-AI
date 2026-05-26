@@ -1639,7 +1639,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           transcendentCount = teamIndivAccuracies.filter(acc => acc > teamTotalAcc).length; // 초월자 카운트
         }
 
-        // 💡 [전문가 공식 반영] 팀원간 일치도 계산 (팀 최종 Top 3 요인에 의견이 집중된 비율)
+        // 💡 [전문가 공식 반영] 팀원 일치도 계산 (팀 최종 Top 3 요인에 의견이 집중된 비율)
         let consensusRate = 0;
         if (teamIndivParetos.length > 0) {
           // 1. 위에서 이미 추출된 팀 최종 1~3순위 요인의 이름만 가져옴
@@ -1732,7 +1732,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <thead>
             <tr>
               <th style="width:60px;">팀</th>
-              <th style="width:80px;">팀원간 일치도</th>
+              <th style="width:80px;">팀원 일치도</th>
               <th style="width:100px;">1순위</th>
               <th style="width:100px;">2순위</th>
               <th style="width:100px;">3순위</th>

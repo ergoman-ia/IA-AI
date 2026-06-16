@@ -499,7 +499,7 @@
       </div>
       <div id="adminPanel" style="display:none;">
         <div style="text-align:right;margin-bottom:12px;">
-          <button class="btn btn-outline btn-sm" onclick="showScreen('joinScreen')">관리자 종료</button>
+          <button class="btn btn-outline btn-sm" onclick="exitAdmin()">관리자 종료</button>
         </div>
         <div class="grid2">
           <div class="card" style="margin:0;border-left:4px solid var(--a);">
@@ -512,7 +512,7 @@
               </div>
               <div style="flex: 1;">
                 <label>팀 수</label>
-                <input type="number" id="newTeamCnt" value="6" min="1" max="20">
+                <input type="number" id="newTeamCnt" value="6" min="1" max="6">
               </div>
             </div>
             <label>사고 시나리오</label>
@@ -708,13 +708,19 @@
     const ADMIN_PW = ADMIN_PASSWORD;
 
     // ──────────────────────────────────────────────────────────────
-    // 🔒 [삭제 안전장치] 팀 스캔 최대치
-    //   과정 생성 UI(newTeamCnt)의 max 값과 반드시 동일하게 유지해야 합니다.
+    // 🔒 [삭제·조회 안전장치 겸 성능 상한] 팀 스캔 최대치
+    //   ⚠️ 과정 생성 UI(newTeamCnt)의 max 값과 반드시 동일하게 유지해야 합니다.
+    //   운영 정책상 한 과정의 팀은 최대 6개를 넘지 않으므로 6으로 설정합니다.
+    //   (UI 입력도 max="6"으로 제한 → team_7 이상은 애초에 생성 불가)
     //   Firestore 클라이언트 SDK는 하위 컬렉션 목록을 조회할 수 없으므로,
-    //   config.teamCount(변경/누락 가능)에 의존하지 않고 항상 이 상한선까지
+    //   config.teamCount(변경/누락 가능)에 의존하지 않고 항상 team_1..MAX_TEAMS를
     //   전수 스캔하여 누락된 팀(예: 팀 수 축소 후 남은 상위 팀)의
-    //   예방대책/설문/마감 데이터까지 완전히 제거합니다.
-    const MAX_TEAMS = 20;
+    //   예방대책/설문/마감 데이터까지 빠짐없이 조회·삭제합니다.
+    //   팀 수를 6→20처럼 늘리려면 이 값과 newTeamCnt의 max를 함께 올리세요.
+    //
+    //   [최대 입력 여력 참고] 팀 6개 × (참가자 수 × 인당 예방대책 ≤5건)
+    //   + 팀당 설문응답 + 마감상태 → 조회/삭제 부하는 6팀 전수로도 충분히 가볍습니다.
+    const MAX_TEAMS = 6;
 
     // 한 팀(team_{i})에 속한 모든 하위 데이터를 완전히 삭제하는 헬퍼.
     //   - submissions(설문 응답), countermeasures(예방대책), meta(마감상태)
@@ -1031,12 +1037,41 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }).join('');
     }
 
-    window.goAdmin = () => showScreen('adminScreen');
+    // 관리자 인증 상태 플래그.
+    //   - 하위 화면("돌아가기")에서 goAdmin() 재사용 시에는 재입력을 요구하지 않고,
+    //   - "관리자 종료" 후 다시 진입할 때는 반드시 비밀번호를 다시 받도록 합니다.
+    let adminAuthed = false;
+
+    const showAdminLogin = () => {
+      document.getElementById('adminLogin').style.display = 'block';
+      document.getElementById('adminPanel').style.display = 'none';
+      document.getElementById('adminPw').value = ''; // 이전 입력 흔적 제거
+    };
+    const showAdminPanel = () => {
+      document.getElementById('adminLogin').style.display = 'none';
+      document.getElementById('adminPanel').style.display = 'block';
+    };
+
+    window.goAdmin = () => {
+      // 인증 상태에 따라 로그인 화면 / 패널을 결정 (미인증이면 항상 비밀번호 요구)
+      if (adminAuthed) showAdminPanel();
+      else showAdminLogin();
+      showScreen('adminScreen');
+    };
+
     window.checkAdmin = () => {
       if (document.getElementById('adminPw').value === ADMIN_PW) {
-        document.getElementById('adminLogin').style.display = 'none';
-        document.getElementById('adminPanel').style.display = 'block';
+        adminAuthed = true;
+        showAdminPanel();
+        document.getElementById('adminPw').value = ''; // 비밀번호 흔적 제거
       } else alert('비밀번호 불일치');
+    };
+
+    // 관리자 종료: 인증 해제 + 화면 초기화 → 재진입 시 비밀번호 재요구
+    window.exitAdmin = () => {
+      adminAuthed = false;
+      showAdminLogin();
+      showScreen('joinScreen');
     };
 
     const SCENARIO_INDUSTRY_MAP = {
@@ -1049,7 +1084,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     window.addCourse = async () => {
       const nm = document.getElementById('newCourseNm').value.trim();
-      const cnt = parseInt(document.getElementById('newTeamCnt').value) || 6;
+      // UI 우회 입력에 대비해 1..MAX_TEAMS(6) 범위로 강제 보정
+      const cnt = Math.min(MAX_TEAMS, Math.max(1, parseInt(document.getElementById('newTeamCnt').value) || 6));
       const scenario = document.getElementById('newScenario').value;
       const industry = SCENARIO_INDUSTRY_MAP[scenario] || 'construction';
       if (!nm) return alert('과정명을 입력하세요.');
@@ -2160,26 +2196,31 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       document.querySelector('.danger-zone').classList.add('show');
       const div = document.getElementById('adminDataList');
       div.innerHTML = '<p style="text-align:center;padding:12px;color:#64748b;font-size:.88rem;">스캔 중...</p>';
-      let rows = [];
+
+      // ⚡ [속도 개선] 과정 × 팀(1..MAX_TEAMS) × 컬렉션(설문·예방대책) 조회를
+      //   순차 await 대신 전부 병렬로 동시에 실행합니다.
+      //   (예: 과정 3개면 기존 120회 '한 줄씩 대기' → 동시 실행으로 체감 1~2회 수준)
+      const tasks = [];
       for (const sess of courseList) {
-        // ⚠️ config.teamCount에 의존하지 않고 team_1..MAX_TEAMS 전수 스캔.
-        //   (팀 수 축소/누락으로 숨겨진 상위 팀의 설문·예방대책까지 노출/삭제 가능)
         for (let i = 1; i <= MAX_TEAMS; i++) {
           const tid = `team_${i}`;
-
           // 설문 응답
-          try {
-            const snap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'));
-            snap.forEach(d => rows.push({ type: 'sub', kind: '설문', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp }));
-          } catch (e) { }
-
+          tasks.push(
+            getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'))
+              .then(snap => snap.docs.map(d => ({ type: 'sub', kind: '설문', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp })))
+              .catch(() => [])
+          );
           // 예방대책
-          try {
-            const cmSnap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'));
-            cmSnap.forEach(d => rows.push({ type: 'cm', kind: '예방대책', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp }));
-          } catch (e) { }
+          tasks.push(
+            getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'))
+              .then(snap => snap.docs.map(d => ({ type: 'cm', kind: '예방대책', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp })))
+              .catch(() => [])
+          );
         }
       }
+      const settled = await Promise.all(tasks);
+      let rows = settled.flat();
+
       if (!rows.length) { div.innerHTML = '<p style="text-align:center;padding:12px;color:#94a3b8;font-size:.88rem;">데이터 없음</p>'; return; }
 
       // 최신 과정이 위로, 같은 과정 내에서는 최신 제출이 위로

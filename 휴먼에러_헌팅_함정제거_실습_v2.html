@@ -1,0 +1,2607 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>휴먼에러 헌팅 — 함정 제거 실습</title>
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+  <link rel="stylesheet"
+    href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css">
+  <style>
+    /* ============================================================
+       휴먼에러 헌팅 — 디자인 시스템
+       콘셉트: 산업 안전 관제실(Control Room) — 규율 있는 계기판,
+       시그니처 = 헤이저드 스트라이프(안전 띠) + 파레토 차트
+       ============================================================ */
+    :root {
+      /* base / chrome */
+      --ink: #0e1a2b;
+      --ink-2: #16273f;
+      --ink-line: #243650;
+      /* surfaces */
+      --bg: #eef1f6;
+      --surface: #ffffff;
+      --surface-2: #f6f8fb;
+      --surface-3: #eef2f7;
+      --line: #e2e8f0;
+      --line-2: #cbd5e1;
+      /* text */
+      --text: #16233a;
+      --muted: #64748b;
+      --muted-2: #94a3b8;
+      /* brand + signals */
+      --brand: #1d4ed8;
+      --brand-deep: #1a3a5c;
+      --hazard: #f5a210;
+      --hazard-ink: #7a4a00;
+      --safe: #16a34a;
+      --safe-bg: #ecfdf5;
+      --warn: #d97706;
+      --warn-bg: #fffbeb;
+      --danger: #dc2626;
+      --danger-bg: #fef2f2;
+      --purple: #7c3aed;
+      /* pareto palette */
+      --pareto: #dc2626;
+      --pareto-hit: #15803d;
+      --pareto-rest: #cbd5e1;
+      --pareto-cum: #0e1a2b;
+      /* shape */
+      --r-sm: 8px;
+      --r: 12px;
+      --r-lg: 16px;
+      --shadow: 0 1px 2px rgba(15, 26, 43, .04), 0 8px 24px rgba(15, 26, 43, .06);
+      --shadow-sm: 0 1px 2px rgba(15, 26, 43, .06);
+      --ring: 0 0 0 3px rgba(29, 78, 216, .25);
+      --font: 'Pretendard', 'Pretendard Variable', -apple-system, BlinkMacSystemFont, 'Malgun Gothic', sans-serif;
+      --mono: 'Pretendard', ui-monospace, 'SFMono-Regular', Menlo, monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      overscroll-behavior-y: none;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.55;
+      padding: 0 16px 40px;
+      overscroll-behavior: none;
+      -webkit-overflow-scrolling: touch;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    .wrap {
+      max-width: 1120px;
+      margin: 0 auto;
+    }
+
+    /* ---------- 헤더 (관제실 크롬 + 헤이저드 스트라이프) ---------- */
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      margin: 0 -16px 20px;
+      padding: 0;
+      background: var(--ink);
+      box-shadow: 0 2px 10px rgba(15, 26, 43, .18);
+    }
+
+    .hazard-strip {
+      height: 5px;
+      background: repeating-linear-gradient(-45deg,
+          var(--hazard) 0 14px, var(--ink) 14px 28px);
+    }
+
+    .header-inner {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 13px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 11px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: var(--hazard);
+      color: var(--ink);
+      display: grid;
+      place-items: center;
+      font-size: 1.15rem;
+      flex: none;
+      box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12);
+    }
+
+    .brand-text {
+      min-width: 0;
+    }
+
+    .brand-text h1 {
+      font-size: 1.06rem;
+      font-weight: 800;
+      letter-spacing: -.4px;
+      color: #fff;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-text p {
+      font-size: .72rem;
+      color: #93a4bd;
+      letter-spacing: .2px;
+      margin-top: 1px;
+    }
+
+    .admin-link {
+      color: #aebcd1;
+      cursor: pointer;
+      font-size: .82rem;
+      font-weight: 600;
+      padding: 7px 12px;
+      border-radius: 8px;
+      border: 1px solid var(--ink-line);
+      background: var(--ink-2);
+      transition: .18s;
+      white-space: nowrap;
+      flex: none;
+    }
+
+    .admin-link:hover {
+      color: #fff;
+      border-color: var(--hazard);
+    }
+
+    /* ---------- 카드 / 패널 ---------- */
+    .card {
+      background: var(--surface);
+      border-radius: var(--r);
+      box-shadow: var(--shadow);
+      padding: 22px;
+      margin-bottom: 16px;
+      border: 1px solid var(--line);
+    }
+
+    .card.tight {
+      padding: 16px;
+    }
+
+    .panel-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--brand-deep);
+      letter-spacing: -.3px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+    }
+
+    .eyebrow {
+      font-size: .72rem;
+      font-weight: 700;
+      letter-spacing: .12em;
+      text-transform: uppercase;
+      color: var(--hazard-ink);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .eyebrow::before {
+      content: "";
+      width: 16px;
+      height: 3px;
+      border-radius: 2px;
+      background: var(--hazard);
+    }
+
+    .screen {
+      display: none;
+      animation: fade .25s ease;
+    }
+
+    .active {
+      display: block;
+    }
+
+    @keyframes fade {
+      from {
+        opacity: 0;
+        transform: translateY(4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+
+      .screen,
+      * {
+        animation: none !important;
+        transition: none !important;
+      }
+    }
+
+    /* ---------- 폼 ---------- */
+    label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 700;
+      color: var(--brand-deep);
+      font-size: .85rem;
+    }
+
+    select,
+    input[type=text],
+    input[type=number],
+    input[type=password],
+    textarea {
+      width: 100%;
+      padding: 11px 13px;
+      margin-bottom: 14px;
+      border: 1px solid var(--line-2);
+      border-radius: var(--r-sm);
+      font-size: .95rem;
+      font-family: inherit;
+      background: var(--surface);
+      color: var(--text);
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    select:focus,
+    input:focus,
+    textarea:focus {
+      border-color: var(--brand);
+      outline: none;
+      box-shadow: var(--ring);
+    }
+
+    textarea {
+      resize: vertical;
+      line-height: 1.7;
+    }
+
+    /* ---------- 버튼 ---------- */
+    .btn {
+      padding: 11px 18px;
+      border: none;
+      border-radius: var(--r-sm);
+      font-size: .94rem;
+      font-weight: 700;
+      font-family: inherit;
+      color: #fff;
+      cursor: pointer;
+      transition: filter .15s, transform .05s, box-shadow .15s;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 7px;
+      line-height: 1.2;
+    }
+
+    .btn:hover {
+      filter: brightness(1.06);
+    }
+
+    .btn:active {
+      transform: translateY(1px);
+    }
+
+    .btn:focus-visible {
+      outline: none;
+      box-shadow: var(--ring);
+    }
+
+    .btn-blue {
+      background: var(--brand);
+    }
+
+    .btn-green {
+      background: var(--safe);
+    }
+
+    .btn-red {
+      background: var(--danger);
+    }
+
+    .btn-orange {
+      background: var(--warn);
+    }
+
+    .btn-purple {
+      background: var(--purple);
+    }
+
+    .btn-gray {
+      background: #475569;
+    }
+
+    .btn-hazard {
+      background: var(--hazard);
+      color: var(--ink);
+    }
+
+    .btn-full {
+      width: 100%;
+    }
+
+    .btn-sm {
+      padding: 7px 13px;
+      font-size: .82rem;
+    }
+
+    .btn-outline {
+      background: var(--surface);
+      border: 1px solid var(--line-2);
+      color: #475569;
+    }
+
+    .btn-outline:hover {
+      filter: none;
+      border-color: var(--brand);
+      color: var(--brand);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: #cbd5e1;
+      border: 1px solid var(--ink-line);
+    }
+
+    /* ---------- 배지 / 칩 ---------- */
+    .badge {
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: .76rem;
+      font-weight: 700;
+      color: #fff;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      letter-spacing: -.2px;
+    }
+
+    .bg-blue {
+      background: var(--brand);
+    }
+
+    .bg-green {
+      background: var(--safe);
+    }
+
+    .bg-red {
+      background: var(--danger);
+    }
+
+    .bg-amber {
+      background: var(--warn);
+    }
+
+    .bg-ink {
+      background: var(--ink-2);
+    }
+
+    .chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 5px 11px;
+      border-radius: 999px;
+      font-size: .82rem;
+      font-weight: 700;
+      border: 1px solid transparent;
+    }
+
+    .chip-hit {
+      background: var(--safe-bg);
+      color: #15803d;
+      border-color: #bbf7d0;
+    }
+
+    .chip-miss {
+      background: var(--danger-bg);
+      color: #b91c1c;
+      border-color: #fecaca;
+    }
+
+    /* ---------- 레이아웃 유틸 ---------- */
+    .grid2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .row {
+      display: flex;
+      gap: 12px;
+    }
+
+    .stack-sm>*+* {
+      margin-top: 10px;
+    }
+
+    .muted {
+      color: var(--muted);
+    }
+
+    .hint {
+      font-size: .82rem;
+      color: var(--muted);
+      line-height: 1.6;
+    }
+
+    .notice {
+      border-radius: var(--r-sm);
+      padding: 12px 14px;
+      font-size: .87rem;
+      line-height: 1.6;
+      border: 1px solid;
+    }
+
+    .notice-amber {
+      background: var(--warn-bg);
+      border-color: #fde68a;
+      color: #78350f;
+    }
+
+    .notice-green {
+      background: var(--safe-bg);
+      border-color: #bbf7d0;
+      color: #166534;
+    }
+
+    .notice-blue {
+      background: #eff6ff;
+      border-color: #bfdbfe;
+      color: #1e40af;
+    }
+
+    .notice-slate {
+      background: var(--surface-2);
+      border-color: var(--line);
+      color: #475569;
+    }
+
+    .error-banner {
+      background: var(--danger-bg);
+      border: 1px solid #fecaca;
+      border-radius: var(--r-sm);
+      padding: 13px;
+      color: #991b1b;
+      font-size: .9rem;
+      text-align: center;
+      margin-bottom: 16px;
+    }
+
+    .empty {
+      text-align: center;
+      padding: 30px 16px;
+      color: var(--muted-2);
+      font-size: .9rem;
+    }
+
+    /* ---------- 테이블 ---------- */
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: .88rem;
+    }
+
+    th,
+    td {
+      padding: 9px 11px;
+      text-align: center;
+      border-bottom: 1px solid #eef2f7;
+    }
+
+    th {
+      background: var(--surface-2);
+      font-weight: 700;
+      color: var(--brand-deep);
+      border-bottom: 2px solid var(--line);
+      font-size: .8rem;
+      white-space: nowrap;
+    }
+
+    tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    tbody tr:hover {
+      background: #fafcff;
+    }
+
+    .session-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid #eef2f7;
+      font-size: .87rem;
+    }
+
+    .session-item:last-child {
+      border-bottom: none;
+    }
+
+    /* ---------- 시나리오 박스 ---------- */
+    .scenario-box {
+      background: linear-gradient(180deg, #f7fafe, #eff5fd);
+      border: 1px solid #d4e3f7;
+      border-left: 4px solid var(--brand-deep);
+      border-radius: var(--r-sm);
+      padding: 16px 18px;
+      margin-bottom: 16px;
+      font-size: .93rem;
+      line-height: 1.95;
+      max-height: 320px;
+      overflow-y: auto;
+      color: #1e3552;
+      white-space: pre-wrap;
+      word-break: keep-all;
+      overscroll-behavior: contain;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* ---------- 설문 진행바 ---------- */
+    .progress-strip {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r-sm);
+      padding: 11px 14px;
+      margin-bottom: 14px;
+      font-size: .87rem;
+      color: var(--brand-deep);
+      font-weight: 600;
+    }
+
+    .progress-track {
+      flex: 1;
+      height: 8px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--brand), #3b82f6);
+      border-radius: 999px;
+      transition: width .25s ease;
+    }
+
+    /* ---------- 질문 카드 + 리커트 ---------- */
+    .q-card {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 16px;
+      margin-bottom: 12px;
+      transition: border-color .15s, box-shadow .15s;
+    }
+
+    .q-card.answered {
+      border-color: #bcd3f7;
+      box-shadow: inset 3px 0 0 var(--brand);
+    }
+
+    .q-head {
+      display: flex;
+      align-items: baseline;
+      gap: 9px;
+      margin-bottom: 9px;
+    }
+
+    .q-no {
+      flex: none;
+      width: 24px;
+      height: 24px;
+      border-radius: 7px;
+      background: var(--ink);
+      color: #fff;
+      font-size: .8rem;
+      font-weight: 800;
+      display: grid;
+      place-items: center;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .q-card.answered .q-no {
+      background: var(--brand);
+    }
+
+    .q-title {
+      font-size: 1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
+    .q-desc {
+      font-size: .87rem;
+      color: #334155;
+      background: var(--surface-2);
+      padding: 9px 12px;
+      border-left: 3px solid var(--line-2);
+      border-radius: 0 6px 6px 0;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    .likert {
+      display: flex;
+      gap: 6px;
+    }
+
+    .lk-opt {
+      flex: 1;
+      text-align: center;
+    }
+
+    .lk-opt input {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .lk-label {
+      display: block;
+      padding: 9px 4px;
+      border: 1.5px solid var(--line);
+      border-radius: var(--r-sm);
+      cursor: pointer;
+      font-size: .78rem;
+      line-height: 1.3;
+      transition: all .14s;
+      background: var(--surface-2);
+      height: 100%;
+    }
+
+    .lk-label .score-num {
+      font-size: .92rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+      color: #475569;
+    }
+
+    .lk-label .score-anchor {
+      font-size: .73rem;
+      color: var(--muted);
+      line-height: 1.3;
+    }
+
+    .lk-label:hover {
+      border-color: #fca5a5;
+      background: #fff5f5;
+    }
+
+    .lk-opt input:checked+.lk-label {
+      background: var(--danger);
+      border-color: var(--danger);
+      box-shadow: 0 4px 10px rgba(220, 38, 38, .25);
+    }
+
+    .lk-opt input:checked+.lk-label .score-num,
+    .lk-opt input:checked+.lk-label .score-anchor {
+      color: #fff;
+    }
+
+    .lk-opt input:focus-visible+.lk-label {
+      box-shadow: var(--ring);
+    }
+
+    /* 점수가 낮을수록(안전) 초록 계열 힌트 */
+    .lk-scale-legend {
+      display: flex;
+      justify-content: space-between;
+      font-size: .72rem;
+      color: var(--muted);
+      margin: 4px 2px 0;
+    }
+
+    /* ---------- 팀 현황 카드(대시보드) ---------- */
+    .team-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .team-card {
+      border-radius: var(--r);
+      padding: 15px 14px;
+      cursor: pointer;
+      border: 1.5px solid var(--line);
+      background: var(--surface);
+      transition: transform .15s, border-color .15s, box-shadow .15s;
+      text-align: left;
+    }
+
+    .team-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow);
+    }
+
+    .team-card.selected {
+      border-color: var(--brand);
+      box-shadow: var(--ring);
+    }
+
+    .team-card.status-done {
+      background: var(--safe-bg);
+      border-color: #86efac;
+    }
+
+    .team-card.status-progress {
+      background: var(--warn-bg);
+      border-color: #fcd34d;
+    }
+
+    .tc-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .tc-name {
+      font-weight: 800;
+      font-size: 1rem;
+      color: var(--brand-deep);
+    }
+
+    .tc-icon {
+      font-size: 1.15rem;
+    }
+
+    .tc-count {
+      font-size: .8rem;
+      color: var(--muted);
+      font-weight: 600;
+    }
+
+    .tc-count b {
+      color: var(--brand-deep);
+      font-size: 1.05rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .tc-bar {
+      height: 6px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      margin-top: 9px;
+    }
+
+    .tc-bar > span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: var(--brand);
+      transition: width .3s;
+    }
+
+    /* ---------- 파레토 차트 ---------- */
+    .pareto-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .pc-grid {
+      stroke: #eef2f7;
+      stroke-width: 1;
+    }
+
+    .pc-axis {
+      fill: var(--muted-2);
+      font-size: 10px;
+      font-family: var(--mono);
+    }
+
+    .pc-rank {
+      fill: var(--muted-2);
+      font-size: 11px;
+      font-weight: 700;
+      font-family: var(--mono);
+    }
+
+    .pc-rank.on {
+      fill: var(--ink);
+    }
+
+    .pc-80 {
+      stroke: var(--warn);
+      stroke-width: 1.5;
+      stroke-dasharray: 5 4;
+    }
+
+    .pc-80t {
+      fill: var(--warn);
+      font-size: 10px;
+      font-weight: 800;
+      font-family: var(--mono);
+    }
+
+    .pc-cum {
+      fill: none;
+      stroke: var(--pareto-cum);
+      stroke-width: 2;
+      stroke-linejoin: round;
+    }
+
+    .pc-dot {
+      fill: #fff;
+      stroke: var(--pareto-cum);
+      stroke-width: 2;
+    }
+
+    .pc-hit {
+      fill: var(--pareto-hit);
+      font-size: 11px;
+      font-weight: 900;
+    }
+
+    .pareto-legend {
+      margin-top: 12px;
+      display: grid;
+      gap: 4px;
+    }
+
+    .pl-row {
+      display: grid;
+      grid-template-columns: 22px 1fr auto auto;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 8px;
+      border-radius: 6px;
+      font-size: .85rem;
+    }
+
+    .pl-row.in {
+      background: #fff5f5;
+    }
+
+    .pl-row.hit {
+      background: var(--safe-bg);
+    }
+
+    .pl-rank {
+      width: 22px;
+      height: 22px;
+      border-radius: 6px;
+      display: grid;
+      place-items: center;
+      font-size: .76rem;
+      font-weight: 800;
+      background: #e2e8f0;
+      color: #475569;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .pl-row.in .pl-rank {
+      background: var(--pareto);
+      color: #fff;
+    }
+
+    .pl-row.hit .pl-rank {
+      background: var(--pareto-hit);
+      color: #fff;
+    }
+
+    .pl-name {
+      font-weight: 600;
+      color: #1e293b;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .pl-pct {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: #334155;
+      min-width: 38px;
+      text-align: right;
+    }
+
+    .pl-cum {
+      font-variant-numeric: tabular-nums;
+      font-size: .76rem;
+      color: var(--muted-2);
+      min-width: 42px;
+      text-align: right;
+    }
+
+    .legend-keys {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      font-size: .76rem;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    .lk {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .lk i {
+      width: 11px;
+      height: 11px;
+      border-radius: 3px;
+      display: inline-block;
+    }
+
+    /* ---------- 정확도 미터 ---------- */
+    .meter {
+      height: 9px;
+      border-radius: 999px;
+      background: #e2e8f0;
+      overflow: hidden;
+    }
+
+    .meter>span {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+    }
+
+    .stat-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+    }
+
+    .stat {
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: var(--r);
+      padding: 14px;
+      text-align: center;
+    }
+
+    .stat .v {
+      font-size: 1.7rem;
+      font-weight: 800;
+      letter-spacing: -1px;
+      color: var(--brand-deep);
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    .stat .l {
+      font-size: .76rem;
+      color: var(--muted);
+      margin-top: 3px;
+      font-weight: 600;
+    }
+
+    /* ---------- 타이머 ---------- */
+    .timer-box {
+      background: var(--ink);
+      border-radius: var(--r);
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 14px;
+      color: #fff;
+    }
+
+    .timer-cap {
+      font-size: .78rem;
+      color: #93a4bd;
+      margin-bottom: 6px;
+      letter-spacing: .04em;
+    }
+
+    .timer-display {
+      font-size: 2.3rem;
+      font-weight: 800;
+      letter-spacing: 3px;
+      font-variant-numeric: tabular-nums;
+      font-family: var(--mono);
+      color: var(--safe);
+    }
+
+    .timer-display.warning {
+      color: var(--hazard);
+    }
+
+    .timer-display.danger {
+      color: #f87171;
+    }
+
+    /* ---------- 위험구역 ---------- */
+    .danger-zone {
+      display: none;
+      margin-top: 18px;
+      padding: 16px;
+      border: 1.5px dashed var(--danger);
+      border-radius: var(--r);
+      background: var(--danger-bg);
+      text-align: center;
+    }
+
+    .danger-zone.show {
+      display: block;
+    }
+
+    /* ---------- 예방대책 카드 ---------- */
+    .cm-item {
+      background: var(--surface-2);
+      padding: 11px 13px;
+      border-radius: var(--r-sm);
+      margin-bottom: 8px;
+      font-size: .9rem;
+      border: 1px solid var(--line);
+      display: flex;
+      gap: 9px;
+    }
+
+    .cm-tag {
+      flex: none;
+      font-weight: 700;
+      color: var(--brand);
+      font-size: .82rem;
+    }
+
+    .cm-text {
+      white-space: pre-wrap;
+      word-break: break-word;
+      color: #334155;
+    }
+
+    /* ---------- 반응형 ---------- */
+    @media (max-width: 720px) {
+      .grid2 {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .brand-text p {
+        display: none;
+      }
+
+      .likert {
+        flex-wrap: wrap;
+      }
+
+      .lk-opt {
+        min-width: calc(20% - 5px);
+      }
+
+      .lk-label {
+        padding: 8px 2px;
+      }
+
+      .lk-label .score-anchor {
+        display: none;
+      }
+
+      .stat .v {
+        font-size: 1.4rem;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <header class="app-header">
+    <div class="hazard-strip"></div>
+    <div class="header-inner">
+      <div class="brand">
+        <div class="brand-mark">⚠️</div>
+        <div class="brand-text">
+          <h1 id="appTitle">휴먼에러 헌팅</h1>
+          <p>함정 제거 실습 · 인적오류 진단 워크숍</p>
+        </div>
+      </div>
+      <span class="admin-link" onclick="goAdmin()">⚙️ 강사 모드</span>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <div id="errorBanner" class="error-banner" style="display:none;">
+      ⚠️ 서버에 연결하지 못했습니다. 네트워크를 확인하거나 강사에게 문의하세요.
+    </div>
+
+    <!-- ===== 강사(관리자) 화면 ===== -->
+    <div id="adminScreen" class="screen">
+      <div id="adminLogin" class="card" style="max-width:420px;margin:32px auto;">
+        <div class="eyebrow" style="margin-bottom:12px;">강사 전용</div>
+        <h3 class="panel-title" style="margin-bottom:16px;">강사 로그인</h3>
+        <input type="password" id="adminPw" placeholder="비밀번호"
+          onkeydown="if(event.key==='Enter')checkAdmin()">
+        <button class="btn btn-blue btn-full" onclick="checkAdmin()">로그인</button>
+        <button class="btn btn-outline btn-full" style="margin-top:8px;"
+          onclick="showScreen('joinScreen')">참가자 화면으로</button>
+      </div>
+
+      <div id="adminPanel" style="display:none;">
+        <div style="text-align:right;margin-bottom:12px;">
+          <button class="btn btn-outline btn-sm" onclick="exitAdmin()">강사 모드 종료</button>
+        </div>
+
+        <div class="grid2">
+          <!-- 과정/팀 설정 -->
+          <div class="card" style="margin:0;">
+            <div class="eyebrow" style="margin-bottom:10px;">SETUP</div>
+            <h4 class="panel-title" style="font-size:1rem;margin-bottom:14px;">과정 개설 &amp; 팀 구성</h4>
+            <div class="row">
+              <div style="flex:3;">
+                <label>과정명</label>
+                <input type="text" id="newCourseNm" placeholder="예: 2026_안전교육 1차">
+              </div>
+              <div style="flex:1;min-width:74px;">
+                <label>팀 수</label>
+                <input type="number" id="newTeamCnt" value="6" min="1" max="6">
+              </div>
+            </div>
+            <label>사고 시나리오</label>
+            <select id="newScenario">
+              <option value="con1">건설1 — 비계 해체 추락 아차사고</option>
+              <option value="con2">건설2 — 타워크레인 자재 충돌</option>
+              <option value="mfg1">제조1 — 포장설비 끼임 사고</option>
+              <option value="mfg2">제조2 — 화학플랜트 밸브 오조작</option>
+              <option value="mfg3">제조3 — 조립라인 이물질·비상대응 실패</option>
+            </select>
+            <button class="btn btn-blue btn-full" onclick="addCourse()">과정 생성</button>
+            <div class="hint" style="margin-top:10px;">개설된 과정은 체크 시 참가자에게 노출됩니다.</div>
+            <div style="margin-top:10px;max-height:190px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r-sm);"
+              id="courseListAdmin"></div>
+          </div>
+
+          <!-- 분석 센터 -->
+          <div class="card" style="margin:0;">
+            <div class="eyebrow" style="margin-bottom:10px;">ANALYSIS</div>
+            <h4 class="panel-title" style="font-size:1rem;margin-bottom:14px;">결과 분석 센터</h4>
+            <div class="stack-sm">
+              <button class="btn btn-purple btn-full" onclick="goDashboard()">① 실시간 응답 현황판</button>
+              <button class="btn btn-green btn-full" onclick="goAllResult()">② 파레토 분석 결과</button>
+              <button class="btn btn-blue btn-full" onclick="goCountermeasures()">③ 팀 성적 &amp; 개선대책</button>
+            </div>
+            <div class="row" style="margin-top:14px;">
+              <button class="btn btn-gray btn-sm" style="flex:1;" onclick="loadAdminData()">데이터 조회 / 삭제</button>
+              <button class="btn btn-orange btn-sm" style="flex:1;" onclick="exportCSV()">CSV 내보내기</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 데이터 관리 -->
+        <div class="card" style="margin-top:16px;">
+          <div class="section-head" style="margin-bottom:10px;">
+            <h4 class="panel-title" style="font-size:1rem;">저장된 데이터</h4>
+            <span class="hint">과정·팀·유형·제출시각 단위로 개별 삭제할 수 있습니다.</span>
+          </div>
+          <div id="adminDataList">
+            <p class="empty">상단의 ‘데이터 조회 / 삭제’를 눌러 불러오세요.</p>
+          </div>
+          <div class="danger-zone">
+            <h4 style="color:var(--danger);margin-bottom:6px;">전체 초기화</h4>
+            <p style="font-size:.86rem;color:#991b1b;margin-bottom:12px;">모든 과정·응답·대책 데이터를 영구 삭제합니다. 되돌릴 수 없습니다.</p>
+            <button class="btn btn-red" onclick="deleteAll()">모든 데이터 삭제</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 참가자 입장 ===== -->
+    <div id="joinScreen" class="screen active">
+      <div class="card" style="max-width:500px;margin:36px auto;">
+        <div class="eyebrow" style="margin-bottom:12px;">참가자 입장</div>
+        <h3 class="panel-title" style="margin-bottom:6px;">사고 원인을 진단할 준비가 되셨나요?</h3>
+        <p class="hint" style="margin-bottom:20px;">
+          강사가 개설한 과정을 선택하세요. 모든 응답은
+          <b style="color:var(--danger);">익명</b>으로 처리됩니다.
+        </p>
+        <label>교과과정</label>
+        <select id="userCourseSelect" onchange="onCourseChange()">
+          <option value="">목록 불러오는 중…</option>
+        </select>
+        <label>소속 팀</label>
+        <select id="userTeamSelect">
+          <option value="">과정을 먼저 선택하세요</option>
+        </select>
+        <button class="btn btn-blue btn-full" style="margin-top:8px;" onclick="enterSim()">진단 시작</button>
+      </div>
+    </div>
+
+    <!-- ===== 설문 ===== -->
+    <div id="surveyScreen" class="screen">
+      <div class="card">
+        <div class="section-head">
+          <div>
+            <div class="eyebrow">사고 원인 진단</div>
+            <h3 id="surveyTitle" class="panel-title" style="margin-top:4px;"></h3>
+          </div>
+          <span id="surveyBadge" class="badge bg-blue">진행 중</span>
+        </div>
+        <div class="scenario-box" id="scenarioText"></div>
+
+        <div id="phase1Area">
+          <div class="notice notice-amber" style="margin-bottom:14px;">
+            <b>[안내]</b> 아래 12가지 인적 요인이 이 사고에 <b>얼마나 기여</b>했는지 평가하세요.
+            1점(기여 없음) → 5점(매우 큰 기여). <b style="color:var(--danger);">제출 후에도 마감 전까지 수정할 수 있습니다.</b>
+          </div>
+          <div class="progress-strip">
+            <span>응답 <strong id="answeredCnt">0</strong> / 12</span>
+            <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+            <span id="progressPct" style="min-width:38px;text-align:right;">0%</span>
+          </div>
+          <div id="questionList"></div>
+          <div class="row" style="margin-top:16px;">
+            <button class="btn btn-green btn-full" onclick="submitSurvey()">진단 제출</button>
+            <button class="btn btn-outline" style="min-width:90px;" onclick="showScreen('joinScreen')">취소</button>
+          </div>
+        </div>
+
+        <div id="phase2Area" style="display:none;"></div>
+      </div>
+    </div>
+
+    <!-- ===== 제출 완료 ===== -->
+    <div id="doneScreen" class="screen">
+      <div class="card" style="max-width:560px;margin:24px auto;text-align:center;padding:32px 22px;">
+        <div style="font-size:2.6rem;margin-bottom:8px;">✅</div>
+        <h2 style="color:var(--safe);letter-spacing:-.5px;">제출 완료</h2>
+        <p class="hint" style="margin-top:8px;margin-bottom:18px;">
+          응답이 안전하게 저장되었습니다. 강사의 안내를 기다려 주세요.
+        </p>
+        <div id="personalFeedback" style="text-align:left;"></div>
+        <button class="btn btn-outline btn-sm" style="margin-top:22px;"
+          onclick="showScreen('joinScreen')">처음으로</button>
+      </div>
+    </div>
+
+    <!-- ===== 현황판 ===== -->
+    <div id="dashScreen" class="screen">
+      <div class="card">
+        <div class="section-head">
+          <h3 class="panel-title">실시간 응답 현황판</h3>
+          <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+        </div>
+        <label>교과과정</label>
+        <select id="dashCourseSelect" onchange="onDashCourseChange()" style="margin-bottom:16px;"></select>
+        <div id="dashTeamCards">
+          <p class="empty">과정을 선택하면 팀별 응답 현황이 실시간으로 표시됩니다.</p>
+        </div>
+        <div id="allSurveyControl" style="display:none;text-align:center;margin-top:18px;padding-top:16px;border-top:1px dashed var(--line);">
+          <p class="hint" style="margin-bottom:10px;">모든 팀이 충분히 응답했다면 설문을 마감하고 개선대책 단계로 전환합니다.</p>
+          <button class="btn btn-red" id="closeAllBtn" onclick="closeAllSurveys()"
+            style="font-size:1.05rem;padding:12px 30px;">전체 설문 마감 → 대책 단계 열기</button>
+        </div>
+        <div id="dashDetail" style="display:none;border-top:1px solid var(--line);padding-top:14px;margin-top:14px;">
+          <div id="dashDetailTitle" style="font-weight:700;color:var(--brand-deep);margin-bottom:10px;"></div>
+          <div id="dashContent"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 파레토 결과 ===== -->
+    <div id="resultScreen" class="screen">
+      <div class="card">
+        <div class="section-head">
+          <h3 class="panel-title">파레토 분석 결과</h3>
+          <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+        </div>
+        <label>분석할 교과과정</label>
+        <select id="resultCourseSelect" onchange="loadResultData()"
+          style="color:var(--brand);font-weight:700;margin-bottom:16px;"></select>
+        <div id="resultContent">
+          <p class="empty">과정을 선택하면 분석 결과가 표시됩니다.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== 팀 성적 & 개선대책 ===== -->
+    <div id="countermeasureScreen" class="screen">
+      <div class="card">
+        <div class="section-head">
+          <h3 class="panel-title">팀 성적 &amp; 개선대책</h3>
+          <button class="btn btn-outline btn-sm" onclick="goAdmin()">돌아가기</button>
+        </div>
+        <label>분석할 교과과정</label>
+        <select id="cmCourseSelect" onchange="loadCountermeasureData()"
+          style="color:var(--brand);font-weight:700;margin-bottom:16px;"></select>
+        <div id="cmContent">
+          <p class="empty">과정을 선택하면 팀 성적과 개선대책이 표시됩니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
+    import { getFirestore, doc, getDoc, setDoc, updateDoc, addDoc, deleteDoc, arrayUnion, arrayRemove, onSnapshot, collection, getDocs }
+      from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+
+    import { FIREBASE_CONFIG, ADMIN_PASSWORD } from "./secrets.js";
+
+    let app, db;
+    try { app = initializeApp(FIREBASE_CONFIG); db = getFirestore(app); }
+    catch (e) { document.getElementById('errorBanner').style.display = 'block'; }
+
+    const ADMIN_PW = ADMIN_PASSWORD;
+
+    // ──────────────────────────────────────────────────────────────
+    // 🔒 팀 스캔 최대치 (과정 생성 UI newTeamCnt의 max와 반드시 동일하게 유지)
+    //   Firestore 클라이언트 SDK는 하위 컬렉션 목록을 조회할 수 없으므로,
+    //   team_1..MAX_TEAMS를 전수 스캔하여 누락 팀의 데이터까지 빠짐없이 처리합니다.
+    const MAX_TEAMS = 6;
+
+    // 한 팀의 모든 하위 데이터(submissions·countermeasures·meta)를 완전 삭제
+    const wipeTeamData = async (sess, tid) => {
+      const subColls = ['submissions', 'countermeasures', 'meta'];
+      const tasks = [];
+      let deleted = 0, failed = 0;
+      for (const cName of subColls) {
+        try {
+          const snap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, cName));
+          snap.forEach(d => {
+            tasks.push(deleteDoc(d.ref).then(() => { deleted++; }).catch(() => { failed++; }));
+          });
+        } catch (e) { failed++; }
+      }
+      await Promise.all(tasks);
+      return { ok: failed === 0, deleted, failed };
+    };
+
+    // 한 과정의 team_1..MAX_TEAMS 전체 삭제 + 잔여 검증(1회 재삭제)
+    const wipeCourseTeams = async (sess) => {
+      let totalDeleted = 0;
+      const firstPass = await Promise.allSettled(
+        Array.from({ length: MAX_TEAMS }, (_, i) => wipeTeamData(sess, `team_${i + 1}`))
+      );
+      firstPass.forEach(r => { if (r.status === 'fulfilled') totalDeleted += r.value.deleted; });
+
+      let remaining = 0;
+      for (let i = 1; i <= MAX_TEAMS; i++) {
+        const tid = `team_${i}`;
+        for (const cName of ['submissions', 'countermeasures', 'meta']) {
+          try {
+            const snap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, cName));
+            if (!snap.empty) {
+              const retry = await Promise.allSettled(snap.docs.map(d => deleteDoc(d.ref)));
+              retry.forEach(rr => { if (rr.status === 'fulfilled') totalDeleted++; });
+              const recheck = await getDocs(collection(db, 'sessions', sess, 'teams', tid, cName));
+              remaining += recheck.size;
+            }
+          } catch (e) { remaining += 1; }
+        }
+      }
+      return { totalDeleted, remaining };
+    };
+
+    const SCENARIOS = {
+      con1: {
+        label: "건설1 — 비계 해체 추락 아차사고",
+        industry: "construction",
+        text: `🏗️ 비계 해체 작업 중 추락 아차사고
+
+【사건 개요】
+
+장마철을 코앞에 둔 오후 4시, 15층 규모의 거대한 주상복합 건설 현장이었습니다. 덥고 습한 공기가 현장을 짓누르는 가운데, 하늘에는 짙은 먹구름이 몰려오며 빗방울이 철골과 발판 위로 조금씩 떨어지기 시작했습니다.
+
+기상 악화로 작업이 전면 중단될 것을 우려한 현장 소장은 극도로 마음이 급해졌습니다. 그는 즉각 무전기를 집어 들고 현장 전체가 울리도록 "비 본격적으로 쏟아지기 전에 외부 비계(아시바) 해체 작업 무조건 빨리 마무리합시다!"라고 강하게 독촉했습니다.
+
+이 한마디의 무전은 현장 전체에 '안전 절차'보다 '작업 속도'를 최우선으로 삼아야 한다는 강력한 상황적 압박과 충동을 형성했습니다.
+
+오늘 해체 작업조에 처음 배치된 일용직 노동자 최씨(62세)는 과거 여러 현장에서 고소 작업을 해본 경험이 있었지만, 유독 이 주상복합 현장의 복잡한 파이프 구조와 작업 동선에는 전혀 익숙하지 않았습니다.
+
+현장 구조를 파악조차 하지 못한 신규 투입 인력임에도 불구하고, 추락 위험도가 극도로 높은 외부 비계 해체 작업에 즉각 투입된 것입니다.
+
+최씨는 아찔한 10층 높이의 허공에서 쇠파이프를 하나씩 해체하는 임무를 띠고 있었습니다. 하지만 낯선 구조 탓에 다음 작업 위치로 이동할 때마다 생명줄과 같은 안전대가 자꾸 주변 튀어나온 구조물에 걸려 팽팽하게 당겨졌고, 이를 풀고 다시 거는 과정 때문에 작업 속도는 계속해서 지연되었습니다.
+
+소장의 재촉하는 무전 소리는 계속 귓가를 때리고, 헬멧 위로 떨어지는 빗방울이 점점 굵어지자 최씨는 심리적으로 쫓기기 시작했습니다.
+
+계속 안전대가 걸리적거리자 그는 "어차피 30분만 더 속도를 내서 하면 다 끝나는데..."라는 생각에 사로잡혔습니다.
+
+결국 눈앞의 불편함을 피하고 작업 속도를 한껏 높이기 위해, 고소 작업의 절대 원칙인 '안전대 고리' 체결을 임의로 생략한 채 안전대를 풀고 파이프를 넘겨받는 위험천만한 지름길을 택하고 말았습니다.
+
+하지만 안전대를 푼 바로 그 순간, 빗물에 흠뻑 젖어 마찰력을 잃고 심하게 미끄러워진 불량한 강관 발판을 밟은 최씨의 작업화가 헛디뎌졌습니다.
+
+중심을 잃은 그는 10층 허공으로 무방비 상태로 미끄러졌고, 다행히 아래층에 설치된 안전방망에 극적으로 떨어져 목숨은 건졌으나 전신에 심각한 골절상을 입는 참변을 겪고 말았습니다.`,
+        answer: ["지름길/생략 본능", "상황적 행동 본능", "무지 / 경험부족"]
+      },
+      con2: {
+        label: "건설2 — 타워크레인 자재 충돌",
+        industry: "construction",
+        text: `🏗️ 타워크레인 자재 인양 중 충돌 사고
+
+【사건 개요】
+
+오전 11시, 굉음이 끊이지 않는 대규모 지하 주차장 골조 공사 현장이었습니다. 수십 미터 상공의 좁은 조종석에 앉은 타워크레인 기사 김씨는 이른 아침 6시부터 단 10분의 휴식도 갖지 못한 채, 벌써 5시간째 무거운 철근 다발을 끊임없이 인양하고 있었습니다.
+
+수톤에 달하는 자재의 미세한 흔들림까지 통제해야 하는 고도의 집중 작업이 장시간 연속되면서, 김씨의 눈은 뻑뻑해졌고 누적된 피로로 인해 상황에 대한 주의력과 판단력은 평소의 절반 이하로 뚝 떨어져 있었습니다.
+
+설상가상으로 이번 철근 인양 작업의 하역 지점은 기사 김씨의 시야에 전혀 들어오지 않는 깊숙한 '사각지대'였습니다. 크레인 기사의 눈을 대신해 줄 무전기와 신호수의 정확한 지시가 그 어느 때보다 절대적으로 중요한 순간이었습니다.
+
+하지만 하필이면 오랫동안 호흡을 맞춰왔던 베테랑 신호수가 이날 연차를 내어 부재중이었고, 현장 관리자는 그 빈자리에 한국어 소통조차 서투른 외국인 근로자 A씨를 임시 신호수로 덜컥 투입해 놓은 상태였습니다.
+
+A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못한 완전한 비숙련자였습니다.
+
+사각지대 아래로 거대한 철근 다발이 그림자를 드리우며 내려오자, A씨는 기사에게 "붐대를 오른쪽으로 돌리라"는 명확하고 규격화된 방향 지시를 무전으로 전달해야 했습니다.
+
+하지만 머리 위로 쏟아질 듯 내려오는 수톤의 철근에 당황한 A씨는 머릿속이 하얗게 비워졌고, 무전기 버튼을 꽉 누른 채 "오, 오! 이쪽!"이라는 한국어인지 자국어인지 모를 불명확한 비명에 가까운 구두 지시만을 외치며 허공에 의미 없는 손짓만 반복했습니다.
+
+상공의 조종석에서 이 정체불명의 지시를 무전으로 수신한 기사 김씨는 극심한 피로 탓에 뇌의 정보 처리 능력이 둔화되어 있었습니다.
+
+그는 불명확한 소음을 자신의 자의적인 판단으로 해석하는 치명적인 착각을 일으켰고, 결국 붐대를 조종하는 레버를 오른쪽이 아닌 왼쪽으로 크게 스윙해 버렸습니다.
+
+궤도를 이탈한 육중한 철근 다발은 허공을 가르며 이제 막 콘크리트 타설을 마치고 양생 중이던 기둥을 정면으로 강타했고, 굉음과 함께 구조물 전체가 도미노처럼 붕괴되는 대형 사고가 발생하고 말았습니다.`,
+        answer: ["의사소통/전달 부족", "피로", "무지 / 경험부족", "착각"]
+      },
+      mfg1: {
+        label: "제조1 — 포장설비 끼임 사고",
+        industry: "manufacturing",
+        text: `🏭 포장 설비 끼임(협착) 사고
+
+【사건 개요】
+
+쉴 새 없이 돌아가는 공장의 자동화 포장 라인. 최근 들어 완성된 박스를 밖으로 밀어내는 핵심 공압 실린더인 푸셔(Pusher) 센서에 미세한 종이 먼지가 지속적으로 끼면서, 멀쩡하던 설비가 자꾸만 일시 정지되는 에러가 하루에도 수차례 발생하고 있었습니다.
+
+공장의 엄격한 안전 매뉴얼(SOP)에 따르면, 이러한 사소한 설비 정지 시에도 작업자는 반드시 메인 전원 스위치를 완전히 차단하고, 타인이 기계를 켤 수 없도록 자물쇠로 잠금장치(LOTO)를 체결한 뒤에야 점검구 안전 도어를 열도록 규정하고 있습니다.
+
+하지만 이 원칙대로 메인 전원을 끄고 도어를 열면 설비의 제어 시스템 전체가 셧다운되어 초기화되었고, 라인을 원래 속도로 복구하는 데 무려 10분이 넘는 긴 시간이 버려졌습니다.
+
+라인의 생산량을 맞추기 위해 복구 시간을 1초라도 단축해야 했던 작업자들은 몇 달 전부터 끔찍한 편법을 고안해 냈습니다.
+
+점검구 도어가 열리면 기계가 멈추도록 설계된 안전 센서(인터락) 위에 검은색 절연 테이프를 겹겹이 붙여, 문이 활짝 열려도 기계는 문이 닫혀있는 것으로 인식하게끔 핵심 안전 기능을 아예 무력화시켜 놓은 것입니다.
+
+더 큰 문제는 현장을 관리 감독해야 할 반장조차 부서원 전체가 공유하고 있는 이 위험천만한 '테이프 꼼수'를 뻔히 알면서도, 생산 효율을 핑계로 암묵적으로 묵인해 왔다는 사실입니다.
+
+오후 2시, 요란한 알람 소리와 함께 설비가 또다시 멈춰 섰습니다. 작업자 박씨는 "어차피 센서에 묻은 먼지만 잠깐 닦고 나오면 된다"는 오랜 작업의 익숙함과 위험에 대한 과신에 빠져, 전원이 살아있는 설비가 언제든 튀어 오를 수 있다는 잠재적 위험을 철저히 무시했습니다.
+
+그는 10분의 복구 시간을 아끼기 위해 필수 안전 절차인 LOTO를 완전히 생략해 버렸습니다. 박씨는 메인 전원을 끄는 대신 제어반의 일시정지(Pause) 버튼만 대충 누른 채, 테이프가 발라진 점검구 도어를 열고 기계 내부 깊숙한 곳으로 자신의 오른손을 거침없이 집어넣었습니다.
+
+박씨의 손에 쥔 걸레가 센서의 먼지를 닦아내는 찰나의 순간, 테이프로 무력화되어 있던 센서는 그 손을 포장해야 할 '박스'가 들어온 것으로 오인해버렸습니다.
+
+일시정지 상태였던 기계가 즉각 재가동되며 육중한 푸셔가 번개처럼 작동했고, 피할 새도 없이 기계실로 빨려 들어간 박씨의 팔은 기계 사이에 무참히 끼이는 끔찍한 중상을 입고 말았습니다.`,
+        answer: ["지름길/생략 본능", "위험 무시 (익숙함)", "집단 결함"]
+      },
+      mfg2: {
+        label: "제조2 — 화학플랜트 밸브 오조작",
+        industry: "manufacturing",
+        text: `🏭 화학 플랜트 밸브 오조작 누출 사고
+
+【사건 개요】
+
+거대한 파이프라인이 얽혀있는 석유화학 플랜트의 반응기 공정, 인적이 드문 고요한 야간 교대 시간이 다가왔습니다. 나이트 근무를 책임져야 할 이대리는 출근 직전부터 온몸이 두들겨 맞은 듯한 심한 감기 몸살과 고열에 시달리고 있었습니다.
+
+그는 쏟아지는 기침을 참기 위해 출근길에 독한 종합감기약을 정량 이상 복용했고, 그 부작용으로 제어실 의자에 앉자마자 견딜 수 없는 졸음과 전신이 물먹은 솜처럼 처지는 무기력함이 덮쳤습니다.
+
+인지 능력과 돌발 상황에 대한 반응 속도가 현저히 떨어지는 '심신기능 저하' 상태로 거대한 플랜트의 운전대를 잡게 된 것입니다.
+
+게다가 그가 밤새 뚫어져라 쳐다봐야 하는 중앙 제어실의 HMI(모니터) 화면은 인간공학적 배려라곤 찾아볼 수 없는 최악의 디자인이었습니다. 수십 개의 복잡한 파이프라인과 밸브 아이콘들이 좁은 모니터 안에 숨 막히게 빽빽하게 배치되어 있었고, 아이콘의 색상과 모양마저 구분이 안 될 정도로 비슷한 데다 텍스트 글씨마저 너무 작아, 맑은 정신일 때도 조작 실수나 착각을 일으키기 십상인 구조였습니다.
+
+사고의 불씨는 교대 직전 인수인계 과정에서 이미 점화되었습니다. 퇴근을 서두르던 전임 근무자는 반응기 B의 내부 세척 작업을 위해 현장의 수동 밸브인 V-102를 완전히 열어두었다는 치명적으로 중요한 사실을 이대리에게 지나가듯 '구두'로만 전달했습니다.
+
+정작 가장 철저하게 기록으로 남겨야 할 작업일지(Log sheet)의 밸브 개폐 상태란에는 펜 한 번 대지 않고 그대로 누락시킨 채 퇴근해 버린 것입니다.
+
+새벽이 깊어지며 감기약 기운에 비몽사몽 상태가 된 이대리의 흐려진 머릿속에서, 전임자가 구두로만 남기고 간 'V-102 개방'이라는 음성 기억은 이미 완벽하게 휘발되어 버렸습니다.
+
+그는 공정 스케줄에 따라 반응기 B를 가동하기 위해 원료를 집어넣는 주입 밸브 V-103을 조작하려고 마우스를 쥐었습니다.
+
+하지만 약기운에 초점이 풀린 눈앞에 가독성이 형편없는 모니터 화면이 흐릿하게 겹쳐 보였고, 이대리는 V-103 밸브 바로 옆에 붙어있는, 글씨와 아이콘 모양이 소름 돋게 비슷한 배출 밸브 V-108을 클릭하여 열어버리는 치명적인 착각을 일으켰습니다.
+
+결국 인수인계 누락으로 통제 없이 열려있던 V-102 밸브와, 이대리의 오조작으로 잘못 열린 V-108 밸브의 경로가 뚫리면서, 플랜트 외부로 치명적인 유해화학물질이 대량으로 뿜어져 나오는 끔찍한 누출 사고가 발생했습니다.`,
+        answer: ["심신기능 저하", "착각", "의사소통/전달 부족"]
+      },
+      mfg3: {
+        label: "제조3 — 조립라인 이물질·비상대응 실패",
+        industry: "manufacturing",
+        text: `🏭 조립 라인 이물질 혼입 및 비상대응 실패
+
+【사건 개요】
+
+쉴 새 없이 컨베이어 벨트가 돌아가는 자동차 부품 조립 라인. 연말이 다가오며 본사에서 하달된 빡빡한 생산 목표량을 억지로 맞추기 위해, 공장 관리자는 이번 주부터 컨베이어 벨트의 가동 속도를 평소 작업자들이 소화하던 페이스보다 무려 15%나 무리하게 끌어올린 상태였습니다.
+
+작업자 정씨는 자신의 자리에서 벌써 8시간 내내, 1분 단위로 다가오는 부품에 정확히 볼트 3개씩을 손으로 끼워 넣는 극도로 단조롭고 기계적인 단순 작업을 앵무새처럼 반복하고 있었습니다.
+
+오후 4시경이 되자, 평소보다 빨라진 라인 속도를 따라잡느라 누적된 육체적 피로와 정신이 마비될 듯한 단조로움이 결합되면서 정씨의 의식과 주의력은 안개처럼 흩어지며 작업 밖으로 완전히 이탈하고 말았습니다.
+
+그 멍해진 찰나의 순간, 집중력을 잃은 정씨의 기름진 장갑 틈으로 볼트 하나가 미끄러졌고, 튕겨 나간 볼트는 복잡한 조립기계 내부 깊숙한 틈새로 굴러떨어지는 1차 에러가 발생했습니다.
+
+기계 내부에 이물질이 들어갔을 때의 정상적인 매뉴얼 절차는 너무나 명확했습니다. 즉시 손을 뻗어 빨간색 비상정지(E-Stop) 버튼을 누르고 라인 전체를 멈춰 세우는 것입니다.
+
+그러나 정씨의 손은 버튼으로 향하지 못했습니다. 그의 머릿속에는 "내가 여기서 버튼을 눌러 라인을 세워버리면 뒤따라오는 전체 생산 공정이 멈추게 되고, 반장이 달려와 수많은 동료들 앞에서 엄청난 쌍욕과 질책을 쏟아낼 것이다"라는 공포심이 매뉴얼을 집어삼켰습니다.
+
+생산량 압박이라는 무거운 공기와 상사의 질책에 대한 두려움 때문에, 정씨는 비상정지라는 지극히 합리적인 대처 대신 비이성적인 행동을 선택하는 상황적 본능에 휘둘리고 말았습니다.
+
+자신의 사소한 실수(볼트 낙하)를 누구의 눈에도 띄지 않게 조용히 수습해야 한다는 당혹감에 빠진 정씨는 완전히 이성을 잃고 패닉 상태에 빠져 안전한 대처 방안을 상실했습니다.
+
+결국 그는 가동 중인 설비에 손을 넣을 때 반드시 지켜야 할 설비 정지(비상 버튼) 절차를 임의로 생략하는 지름길 본능을 발동했습니다.
+
+정씨는 컨베이어 벨트가 맹렬하게 돌아가고 있는 아찔한 상태에서, 기계 주변에 있던 긴 집게를 들고 기계 내부로 상체를 깊숙이 숙여 무리하게 볼트를 꺼내려 시도했습니다.
+
+덜덜 떨리는 손으로 기적적으로 볼트는 집어 올렸지만, 그 급박한 과정에서 쇳덩이 집게 끝이 기계 내부의 민감한 구동 센서를 잘못 건드리고 말았습니다.
+
+그 순간, 대기 중이던 강철 로봇 암이 미친 듯이 오작동을 일으키며 튕겨져 나왔고, 볼트를 꺼내느라 무방비 상태로 상체를 숙이고 있던 정씨의 안면부를 그대로 박살 내듯 강타하는 끔찍한 2차 사고가 터지고 말았습니다.`,
+        answer: ["상황적 행동 본능", "의식저하 (단조로움)", "지름길/생략 본능", "패닉 (당황, 놀람)"]
+      }
+    };
+
+    const QUESTIONS = {
+      construction: [
+        { factor: "무지 / 경험부족", desc: "해당 현장 작업에 대한 기술 숙련도 및 사전 안전교육 부족", weight: 1.0, anchors: ["전문(비정상 대처 가능)", "숙련(3년↑ 경험)", "보통(1~3년/OJT 이수)", "위험(6개월↓ 경험)", "매우 심각(첫 투입/OJT 전무)"] },
+        { factor: "위험 무시 (익숙함)", desc: "안전고리 체결 등 필수 수칙을 익숙함으로 고의 누락", weight: 2.0, anchors: ["안전(주변 위험까지 통제)", "양호(상시 경계)", "보통(표준 수칙 준수)", "위험(과소평가 빈번)", "매우 심각(안전구 미착용 상시)"] },
+        { factor: "주의력 부족", desc: "장비 이동·낙하물 등 주변 상황 변화에 대한 경계심 부족", weight: 1.0, anchors: ["안전(반경 내 완벽 감시)", "양호(높은 집중력)", "보통(일반적 집중도)", "위험(자주 분산됨)", "매우 심각(위험 전혀 인지 불가)"] },
+        { factor: "의사소통/전달 부족", desc: "TBM 미실시 및 작업 전 위험 요인 미공유", weight: 1.5, anchors: ["안전(다공종 간 완벽 조율)", "양호(양방향 소통 원활)", "보통(적정 수준 공유)", "위험(형식적 조회)", "매우 심각(TBM 미실시/미전달)"] },
+        { factor: "집단 결함", desc: "안전보다 속도를 중시하는 잘못된 현장 관행에 휩쓸림", weight: 1.0, anchors: ["안전(잘못된 관행 거부/시정)", "양호(독자적 안전 판단)", "보통(원칙 유지 노력)", "위험(대세에 쉽게 휩쓸림)", "매우 심각(안전 규정 위반 동조)"] },
+        { factor: "지름길/생략 본능", desc: "공기 단축을 위해 표준 작업 절차를 임의로 건너뜀", weight: 2.5, anchors: ["안전(체크리스트 교차 점검)", "양호(절차 엄격 준수)", "보통(최대한 준수)", "위험(자주 생략)", "매우 심각(절차 무시 일상화)"] },
+        { factor: "상황적 행동 본능", desc: "납기 압박·주변 분위기에서 충동적으로 판단하고 행동", weight: 1.0, anchors: ["안전(압박 속에도 냉철 판단)", "양호(매뉴얼 중심 행동)", "보통(상황에 따라 대처)", "위험(분위기에 민감 반응)", "매우 심각(충동적/위험 행동)"] },
+        { factor: "패닉 (당황, 놀람)", desc: "돌발 사고·장비 고장 등 비정상 상황 발생 시 대응 불가", weight: 1.5, anchors: ["안전(훈련 기반 즉각 조치)", "양호(침착 유지/기본 조치)", "보통(긴장 및 지시 대기)", "위험(대처 늦어짐)", "매우 심각(판단 정지/대피 실패)"] },
+        { factor: "착각", desc: "도면·계기판 등을 오인하거나 주변 상황을 잘못 판단", weight: 1.0, anchors: ["안전(에러 방지 시스템 완비)", "양호(지시/도면 명확)", "보통(일반적 판단 수준)", "위험(자주 착각 유발)", "매우 심각(오인 상시 유발)"] },
+        { factor: "심신기능 저하", desc: "질병·전날 음주 등으로 인한 육체적 작업 적합성 결여", weight: 2.0, anchors: ["안전(최상 신체 능력)", "양호(건강 상태 양호)", "보통(투입 문제 없음)", "위험(기능 저하 체감)", "매우 심각(고소 작업 절대 불가)"] },
+        { factor: "피로", desc: "과도한 잔업·폭염·수면 부족 등에 따른 육체적 탈진", weight: 1.0, anchors: ["안전(충분한 휴식 지원)", "양호(적절한 휴게 보장)", "보통(일상적 피로 수준)", "위험(피로도 매우 높음)", "매우 심각(탈진 직전)"] },
+        { factor: "의식저하 (단조로움)", desc: "단순 반복 작업 시 지루함으로 인한 경계심 상실", weight: 1.0, anchors: ["안전(상시 긴장 유지 시스템)", "양호(교대/환기로 긴장 유지)", "보통(일반적 주의력)", "위험(집중 유지 어려움)", "매우 심각(졸음 유발/의식 이탈)"] }
+      ],
+      manufacturing: [
+        { factor: "무지 / 경험부족", desc: "해당 설비 조작 경험 및 트러블슈팅 지식 부족", weight: 1.0, anchors: ["전문(트러블슈팅 전문)", "숙련(3년↑ 공정 경험)", "보통(기본 OJT 이수)", "위험(6개월↓ 경험)", "매우 심각(첫 운전/원리 전무)"] },
+        { factor: "위험 무시 (익숙함)", desc: "인터락 해제 등 안전 장치 무단 바이패스", weight: 2.0, anchors: ["안전(물리적·시스템 차단 완벽)", "양호(설비 위험성 상시 경계)", "보통(설비 방호 수칙 준수)", "위험(안전 센서 가끔 무시)", "매우 심각(인터락 상시 임의 해제)"] },
+        { factor: "주의력 부족", desc: "계기판 모니터링 시 중요 알람·이상 수치 인지 지연", weight: 1.0, anchors: ["안전(이상 징후 선제적 파악)", "양호(모니터링 집중도 높음)", "보통(일반적 관제)", "위험(간헐적 오독)", "매우 심각(중요 경보 지속 놓침)"] },
+        { factor: "의사소통/전달 부족", desc: "교대조 간 설비 트러블 이력 및 인수인계 누락", weight: 1.5, anchors: ["안전(전산화 이력 완벽 공유)", "양호(명확한 정보 전달)", "보통(작업일지 기반 인수인계)", "위험(인수인계 일지 부실)", "매우 심각(구두 전달 전무/누락)"] },
+        { factor: "집단 결함", desc: "불량품 축소 보고하거나 무리한 생산 강행 동조", weight: 1.0, anchors: ["안전(품질/안전 최우선)", "양호(원칙 기반 독자 판단)", "보통(개인 기준 불량 보고)", "위험(생산 압박에 타협)", "매우 심각(불량/위해요인 은폐 동조)"] },
+        { factor: "지름길/생략 본능", desc: "생산 수율 위해 세척·예열 시간 등 필수 공정 임의 축소", weight: 2.5, anchors: ["안전(Fool-proof 완비)", "양호(표준 절차 엄격 준수)", "보통(정해진 Recipe 준수)", "위험(자주 공정 축소)", "매우 심각(공정 단계 상시 생략)"] },
+        { factor: "상황적 행동 본능", desc: "납기 지연 압박 시 무리하게 설비 가동·수리 시도", weight: 1.0, anchors: ["안전(압박 속에서도 LOTO 준수)", "양호(SOP 중심 행동)", "보통(절차에 따른 조치)", "위험(납기에 쫓겨 불안전 행동)", "매우 심각(LOTO 미실시 즉각 개입)"] },
+        { factor: "패닉 (당황, 놀람)", desc: "유해물질 누출 등 비상사태 발생 시 비상정지(ESD) 실패", weight: 1.5, anchors: ["안전(훈련 기반 완벽 대응)", "양호(침착한 설비 정지·대피)", "보통(기본 비상 버튼 조작)", "위험(초기 대응 지연)", "매우 심각(ESD 누락/대피 불가)"] },
+        { factor: "착각", desc: "조작 스위치 배열 불량 등으로 밸브를 오조작할 가능성", weight: 1.0, anchors: ["안전(인간공학적 HMI 완비)", "양호(버튼 식별 명확)", "보통(일반적 설비 인터페이스)", "위험(레이아웃 복잡/착각 유발)", "매우 심각(오조작 매우 잦음)"] },
+        { factor: "심신기능 저하", desc: "음주·약물 복용 등으로 인한 조작 반응 속도 저하", weight: 2.0, anchors: ["안전(작업 전 헬스체크 완벽)", "양호(신체 반응 양호)", "보통(공정 운전 무리 없음)", "위험(반응 속도 느림)", "매우 심각(음주/약물 위험 설비 불가)"] },
+        { factor: "피로", desc: "야간 교대·연속 가동에 따른 조작원 시각적·육체적 피로", weight: 1.0, anchors: ["안전(자동화 보조로 피로 최소화)", "양호(휴게 엄수/피로 관리)", "보통(일반적 교대 피로)", "위험(수면 부족/피로 누적)", "매우 심각(계기판 모니터링 불가)"] },
+        { factor: "의식저하 (단조로움)", desc: "컨베이어 단순 검사 반복 시 무감각해져 불량 통과", weight: 1.0, anchors: ["안전(머신러닝 자동화 보조)", "양호(교대/휴식으로 환기)", "보통(일반적 집중력 유지)", "위험(집중 저하/간헐적 불량 누락)", "매우 심각(불량품 통과 빈발)"] }
+      ],
+      healthcare: [
+        { factor: "지식 부족 (Knowledge)", desc: "고위험 약물 지식 및 최신 프로토콜 숙지 상태 부족", weight: 2.0, anchors: ["완벽(타인 지도 가능)", "우수(전문 지식 보유)", "보통(5 Right 숙지)", "부족(기본 지식 미흡)", "매우 심각(약물 지식 전무)"] },
+        { factor: "안주 (Complacency)", desc: "반복 루틴 업무 시 재확인·검증 절차 누락", weight: 1.0, anchors: ["안전(시스템 검증 완벽)", "양호(이중확인 철저)", "보통(5 Right 준수)", "위험(이중확인 가끔 생략)", "매우 위험(교차확인 상시 누락)"] },
+        { factor: "혼란 (Distraction)", desc: "투약 중 알람·보호자 호출로 인한 주의 분산", weight: 1.5, anchors: ["안전(투약 전용 구역 완벽)", "양호(집중 가능)", "보통(통제 가능)", "위험(잦은 방해)", "매우 위험(업무 중단 심각)"] },
+        { factor: "의사소통 부족 (Communication)", desc: "구두 처방 오인 및 SBAR 인수인계 누락", weight: 2.5, anchors: ["완벽(Closed-loop 소통)", "양호(명확한 SBAR)", "보통(표준 인계 수행)", "위험(지시 불명확)", "매우 심각(SBAR 누락 심각)"] },
+        { factor: "팀워크 부족 (Teamwork)", desc: "바쁜 듀티 시 상호 지원 거부 및 다학제 협력 부재", weight: 1.5, anchors: ["완벽(역할 분담 완벽)", "양호(유기적 협력)", "보통(일반적 지원)", "위험(개인 위주 업무)", "매우 심각(업무 떠넘기기 심각)"] },
+        { factor: "잘못된 지침/규범 (Norms)", desc: "임상 현실과 맞지 않는 매뉴얼로 Workaround 발생", weight: 1.0, anchors: ["안전(최적화된 지침)", "양호(최신화/접근성 우수)", "보통(표준 지침 존재)", "위험(지침 불완전)", "매우 위험(워크어라운드 빈발)"] },
+        { factor: "압박 (Pressure)", desc: "중증 환자 과다 배정 및 응급 상황으로 인한 시간 촉박", weight: 1.0, anchors: ["안전(재평가 가능한 여유)", "양호(시간 여유 있음)", "보통(적정 업무량)", "위험(시간에 쫓김)", "매우 위험(필수 간호 턱없이 부족)"] },
+        { factor: "스트레스 (Stress)", desc: "보호자 클레임·감정 노동·중증 환자 간호에 따른 심리 부담", weight: 1.0, anchors: ["안전(심리적 안정감 완벽)", "양호(스트레스 관리 가능)", "보통(일반적 직무 스트레스)", "위험(지속적 긴장)", "매우 위험(극도의 Burnout)"] },
+        { factor: "인식 부족 (Awareness)", desc: "환자 상태 변화 조기 인지(Early Warning) 실패", weight: 1.0, anchors: ["안전(입체적 장악 및 예측)", "양호(잠재 위험 사전 인지)", "보통(주요 변화 인지)", "위험(부분적 파악)", "매우 위험(조기 인지 실패)"] },
+        { factor: "인적자원 부족 (Resources)", desc: "듀티별 간호사 수 부족 및 필수 의료 장비 부재", weight: 1.0, anchors: ["안전(예비 인력·장비 대기)", "양호(원활한 지원)", "보통(표준 배치)", "위험(일시적 부족)", "매우 위험(인력·장비 절대 부족)"] },
+        { factor: "피로 (Fatigue)", desc: "3교대·야간 연속 근무로 인한 간호 인지력·판단력 저하", weight: 2.5, anchors: ["안전(충분한 휴식 보장)", "양호(적절한 오프 보장)", "보통(일상적 교대 피로)", "위험(만성 피로 누적)", "매우 심각(투약 판단력 극심 저하)"] },
+        { factor: "자기 주장 부족 (Assertiveness)", desc: "처방 오류 의심 시 의사·수간호사에게 확인(Speak-up) 못함", weight: 2.0, anchors: ["안전(직급 무관 Speak-up 정착)", "양호(오류 지적 가능)", "보통(필요 시 발언)", "위험(상급자 눈치)", "매우 심각(명백한 오류에도 침묵)"] }
+      ]
+    };
+
+    // ================================================================
+    //  유틸
+    // ================================================================
+    const $ = id => document.getElementById(id);
+    const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+    const SCENARIO_INDUSTRY_MAP = {
+      con1: 'construction', con2: 'construction',
+      mfg1: 'manufacturing', mfg2: 'manufacturing', mfg3: 'manufacturing'
+    };
+
+    let courseList = [], activeCourseList = [];
+    let currentDashSess = '';
+    let dashUnsubs = {}, detailUnsub = null;
+
+    function showScreen(id) {
+      document.querySelectorAll('.screen').forEach(el => el.classList.remove('active'));
+      $(id).classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+    window.showScreen = showScreen;
+
+    // ================================================================
+    //  공통 통계 엔진 — 과거 데이터와 동일한 공식을 한 곳에서 계산
+    //   (파레토 80% · 개인 정확도 · 팀 정확도 · 능력자 · 초월자 · 일치도)
+    // ================================================================
+    function analyzeTeam(snap, factorNames, answerKeys) {
+      const sums = new Array(12).fill(0);
+      let cnt = 0;
+      const indivTop3 = [];   // 모든 팀원의 개인 Top3 요인명(평탄화)
+      const indivAcc = [];    // 개인별 정확도(%)
+
+      snap.forEach(d => {
+        const s = d.data().scores;
+        if (!s || !Array.isArray(s)) return;
+        const my = [];
+        s.forEach((item, idx) => {
+          if (idx < 12) {
+            const val = (item.weighted || item.score || 0);
+            sums[idx] += val;
+            my.push({ name: factorNames[idx], val });
+          }
+        });
+        cnt++;
+        my.sort((a, b) => b.val - a.val);
+        const myTop = my.slice(0, 3).map(x => x.name);
+        indivTop3.push(...myTop);
+
+        const hit = myTop.filter(n => answerKeys.includes(n)).length;
+        const maxHits = Math.min(3, answerKeys.length);
+        indivAcc.push(answerKeys.length > 0 && maxHits > 0 ? Math.round(hit / maxHits * 100) : 0);
+      });
+
+      // 팀 집계 → 정렬 → 파레토
+      const sorted = factorNames.map((nm, i) => ({ name: nm, val: sums[i] }))
+        .sort((a, b) => b.val - a.val);
+      const total = sorted.reduce((s, x) => s + x.val, 0);
+      let cum = 0, paretoIdx = -1;
+      const rows = sorted.map((it, i) => {
+        cum += it.val;
+        const cumPct = total > 0 ? cum / total * 100 : 0;
+        if (cumPct >= 80 && paretoIdx === -1) paretoIdx = i;
+        return { rank: i + 1, name: it.name, val: it.val, pct: total > 0 ? it.val / total * 100 : 0, cumPct, hit: answerKeys.includes(it.name) };
+      });
+      rows.forEach((r, i) => r.inPareto = paretoIdx === -1 ? true : i <= paretoIdx);
+
+      const top3 = rows.slice(0, 3);
+      const top3Names = top3.map(x => x.name);
+
+      // 팀 정확도 / 능력자 / 초월자
+      let accuracy = 0, masterCount = 0, transcendentCount = 0;
+      if (indivAcc.length > 0) {
+        accuracy = Math.round(indivAcc.reduce((a, b) => a + b, 0) / indivAcc.length);
+        masterCount = indivAcc.filter(a => a === 100).length;
+        transcendentCount = indivAcc.filter(a => a > accuracy).length;
+      }
+      // 팀원 일치도 (개인 선택이 팀 Top3에 집중된 비율)
+      let consensusRate = 0;
+      if (indivTop3.length > 0) {
+        const focus = indivTop3.filter(n => top3Names.includes(n)).length;
+        consensusRate = Math.round(focus / indivTop3.length * 100);
+      }
+
+      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, transcendentCount, consensusRate };
+    }
+
+    function accColor(a) { return a >= 70 ? 'var(--safe)' : a >= 40 ? 'var(--warn)' : 'var(--danger)'; }
+
+    function getTeamEvaluation(team) {
+      const accuracy = team.accuracy || 0;
+      const expertCount = team.masterCount || 0;
+      const agreement = team.consensusRate || 0;
+      if (expertCount > 0 && agreement >= 70 && accuracy < 80) return "💬 소수 의견 경청 후 소통 촉진";
+      if (expertCount >= 2) return "🎯 이미 정답을 품은 팀";
+      if (accuracy >= 60 && accuracy < 75 && expertCount === 0) return "🧭 절반은 맞았다, 방향타가 없다";
+      if (accuracy < 65 && agreement < 70) return "🔀 제각각 — 밀착 관리 필요";
+      return "✅ 균형 잡힌 팀워크 유지";
+    }
+
+    // ================================================================
+    //  파레토 차트 (순수 SVG) — 정렬 막대 + 누적선 + 80% 기준선 + 정답 하이라이트
+    // ================================================================
+    function paretoChart(rows, opts = {}) {
+      const n = rows.length;
+      const W = opts.width || 680, H = opts.height || 240;
+      const padL = 30, padR = 36, padT = 16, padB = 22;
+      const cw = W - padL - padR, ch = H - padT - padB;
+      const bw = cw / n;
+      const barW = bw * 0.62;
+      const yBot = padT + ch;
+      const yOf = pct => yBot - (pct / 100) * ch;
+
+      let grid = '';
+      [0, 50, 100].forEach(t => {
+        const yy = yOf(t);
+        grid += `<line x1="${padL}" y1="${yy.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${yy.toFixed(1)}" class="pc-grid"/>`
+          + `<text x="${padL - 5}" y="${(yy + 3).toFixed(1)}" text-anchor="end" class="pc-axis">${t}</text>`;
+      });
+
+      let bars = '', marks = '', cumPts = [];
+      rows.forEach((r, i) => {
+        const bx = padL + bw * i + (bw - barW) / 2;
+        const bh = (r.pct / 100) * ch;
+        const by = yBot - bh;
+        const fill = r.inPareto ? (r.hit ? 'var(--pareto-hit)' : 'var(--pareto)') : 'var(--pareto-rest)';
+        bars += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" rx="2" fill="${fill}"><title>${esc(r.name)} · ${Math.round(r.pct)}%</title></rect>`;
+        bars += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(yBot + 13).toFixed(1)}" text-anchor="middle" class="pc-rank ${r.inPareto ? 'on' : ''}">${r.rank}</text>`;
+        if (r.hit && opts.showHit) marks += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-hit">✓</text>`;
+        cumPts.push([bx + barW / 2, yOf(r.cumPct)]);
+      });
+
+      const y80 = yOf(80);
+      const line80 = `<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y80.toFixed(1)}" class="pc-80"/>`
+        + `<text x="${(W - padR + 3)}" y="${(y80 + 3).toFixed(1)}" class="pc-80t">80</text>`;
+
+      const path = cumPts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
+      const dots = cumPts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" class="pc-dot"/>`).join('');
+
+      return `<svg viewBox="0 0 ${W} ${H}" class="pareto-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="파레토 차트">`
+        + `${grid}${bars}${line80}<path d="${path}" class="pc-cum"/>${dots}${marks}</svg>`;
+    }
+
+    // 차트 아래 순위 범례 (요인명 매핑)
+    function paretoLegend(rows, opts = {}) {
+      const showHit = opts.showHit;
+      return `<div class="pareto-legend">` + rows.map(r => {
+        const cls = showHit && r.hit ? 'hit' : r.inPareto ? 'in' : '';
+        return `<div class="pl-row ${cls}">
+          <span class="pl-rank">${r.rank}</span>
+          <span class="pl-name">${esc(r.name)}${showHit && r.hit ? ' ✓' : ''}</span>
+          <span class="pl-pct">${Math.round(r.pct)}%</span>
+          <span class="pl-cum">누적 ${Math.round(r.cumPct)}%</span>
+        </div>`;
+      }).join('') + `</div>`;
+    }
+
+    const paretoKeys = (showHit) => `<div class="legend-keys">
+      <span class="lk"><i style="background:var(--pareto)"></i>핵심요인(80%)</span>
+      ${showHit ? '<span class="lk"><i style="background:var(--pareto-hit)"></i>전문가 정답 일치</span>' : ''}
+      <span class="lk"><i style="background:var(--pareto-rest)"></i>그 외</span>
+      <span class="lk"><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--ink)" stroke-width="2"/></svg>누적 비율</span>
+    </div>`;
+
+    // ================================================================
+    //  과정 목록 동기화
+    // ================================================================
+    window.onload = async () => {
+      if (!db) return;
+      const settingsRef = doc(db, 'settings', 'courses');
+      const settingsSnap = await getDoc(settingsRef);
+      if (!settingsSnap.exists()) await setDoc(settingsRef, { list: [], activeList: [] });
+
+      onSnapshot(doc(db, 'settings', 'courses'), (snap) => {
+        courseList = []; activeCourseList = [];
+        if (snap.exists()) {
+          courseList = snap.data().list || [];
+          activeCourseList = snap.data().activeList || [];
+        }
+        refreshSelects();
+        renderAdminCourseList();
+      });
+    };
+
+    function refreshSelects() {
+      const uEl = $('userCourseSelect');
+      if (uEl) {
+        const opts = activeCourseList.slice().reverse().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+        uEl.innerHTML = `<option value="">과정을 선택하세요</option>${opts}`;
+      }
+      ['dashCourseSelect', 'resultCourseSelect', 'cmCourseSelect'].forEach(id => {
+        const el = $(id);
+        if (!el) return;
+        const cur = el.value;
+        const opts = courseList.slice().reverse().map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+        el.innerHTML = `<option value="">선택…</option>${opts}`;
+        if (cur && courseList.includes(cur)) el.value = cur;
+      });
+    }
+
+    function renderAdminCourseList() {
+      const div = $('courseListAdmin');
+      if (!div) return;
+      if (!courseList.length) { div.innerHTML = `<p class="empty" style="padding:18px;">개설된 과정이 없습니다.</p>`; return; }
+      div.innerHTML = courseList.slice().reverse().map(c => {
+        const chk = activeCourseList.includes(c) ? 'checked' : '';
+        return `<div class="session-item">
+          <label style="margin:0;display:flex;align-items:center;gap:8px;cursor:pointer;font-weight:600;color:#334155;">
+            <input type="checkbox" ${chk} onchange="toggleActive('${esc(c)}',this.checked)" style="width:16px;height:16px;margin:0;">
+            ${esc(c)}
+          </label>
+          <button class="btn btn-red btn-sm" onclick="deleteCourse('${esc(c)}')">삭제</button>
+        </div>`;
+      }).join('');
+    }
+
+    // ================================================================
+    //  강사 인증
+    // ================================================================
+    let adminAuthed = false;
+    const showAdminLogin = () => { $('adminLogin').style.display = 'block'; $('adminPanel').style.display = 'none'; $('adminPw').value = ''; };
+    const showAdminPanel = () => { $('adminLogin').style.display = 'none'; $('adminPanel').style.display = 'block'; };
+
+    window.goAdmin = () => { adminAuthed ? showAdminPanel() : showAdminLogin(); showScreen('adminScreen'); };
+    window.checkAdmin = () => {
+      if ($('adminPw').value === ADMIN_PW) { adminAuthed = true; showAdminPanel(); $('adminPw').value = ''; }
+      else alert('비밀번호가 일치하지 않습니다.');
+    };
+    window.exitAdmin = () => { adminAuthed = false; showAdminLogin(); showScreen('joinScreen'); };
+
+    // ================================================================
+    //  과정 생성 / 삭제 / 노출
+    // ================================================================
+    window.addCourse = async () => {
+      const nm = $('newCourseNm').value.trim();
+      const cnt = Math.min(MAX_TEAMS, Math.max(1, parseInt($('newTeamCnt').value) || 6));
+      const scenario = $('newScenario').value;
+      const industry = SCENARIO_INDUSTRY_MAP[scenario] || 'construction';
+      if (!nm) return alert('과정명을 입력하세요.');
+      if (courseList.includes(nm)) return alert('이미 같은 이름의 과정이 있습니다.');
+
+      const settingsRef = doc(db, 'settings', 'courses');
+      const settingsSnap = await getDoc(settingsRef);
+      if (!settingsSnap.exists()) await setDoc(settingsRef, { list: [nm], activeList: [nm] });
+      else await updateDoc(settingsRef, { list: arrayUnion(nm), activeList: arrayUnion(nm) });
+
+      await setDoc(doc(db, 'course_configs', nm), { teamCount: cnt, scenario, industry });
+      $('newCourseNm').value = '';
+      alert(`‘${nm}’ 과정이 생성되었습니다.`);
+    };
+
+    window.deleteCourse = async (nm) => {
+      if (!confirm(`‘${nm}’ 과정을 삭제하시겠습니까?\n⚠️ 해당 과정의 모든 설문·예방대책 데이터도 함께 영구 삭제됩니다.`)) return;
+      try {
+        const { totalDeleted, remaining } = await wipeCourseTeams(nm);
+        if (remaining > 0) {
+          alert(`일부 데이터(${remaining}건)가 삭제되지 않았습니다.\n네트워크 확인 후 ‘삭제’를 다시 눌러 주세요.\n(과정은 목록에 그대로 남겨 두었습니다.)`);
+          return;
+        }
+        await deleteDoc(doc(db, 'course_configs', nm));
+        await updateDoc(doc(db, 'settings', 'courses'), { list: arrayRemove(nm), activeList: arrayRemove(nm) });
+        try {
+          [...Array(sessionStorage.length).keys()].map(i => sessionStorage.key(i))
+            .filter(k => k && k.includes(nm)).forEach(k => sessionStorage.removeItem(k));
+        } catch (e) { }
+        alert(`‘${nm}’ 과정과 관련 데이터(설문 ${totalDeleted}건 포함)가 모두 삭제되었습니다.`);
+      } catch (error) {
+        console.error("과정 삭제 오류:", error);
+        alert("삭제 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+      }
+    };
+
+    window.toggleActive = async (nm, val) => {
+      await updateDoc(doc(db, 'settings', 'courses'), { activeList: val ? arrayUnion(nm) : arrayRemove(nm) });
+    };
+
+    // ================================================================
+    //  참가자 입장
+    // ================================================================
+    window.onCourseChange = async () => {
+      const sess = $('userCourseSelect').value;
+      const tSel = $('userTeamSelect');
+      const joinBtn = document.querySelector('#joinScreen .btn-full');
+      tSel.innerHTML = '<option value="">불러오는 중…</option>';
+      if (!sess) { tSel.innerHTML = '<option value="">과정을 먼저 선택하세요</option>'; return; }
+
+      let tCount = 6;
+      try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
+      tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
+
+      const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`);
+      if (submittedTeam) { tSel.value = submittedTeam; tSel.disabled = true; }
+      else tSel.disabled = false;
+
+      const isClosed = await checkIfClosed(sess, submittedTeam || 'team_1');
+      const setBtn = (txt, cls) => { if (!joinBtn) return; joinBtn.innerText = txt; joinBtn.className = `btn btn-full ${cls}`; };
+
+      if (isClosed) { setBtn('개선 및 예방대책 입력', 'btn-green'); return; }
+
+      const existingDocId = sessionStorage.getItem(`submitted_${sess}`);
+      if (existingDocId && existingDocId !== 'true') {
+        const team = submittedTeam || 'team_1';
+        try {
+          const docSnap = await getDoc(doc(db, 'sessions', sess, 'teams', team, 'submissions', existingDocId));
+          if (docSnap.exists()) { setBtn('내 진단 수정', 'btn-orange'); return; }
+        } catch (e) { }
+        sessionStorage.removeItem(`submitted_${sess}`);
+        sessionStorage.removeItem(`submitted_team_${sess}`);
+        sessionStorage.removeItem(`answers_${sess}`);
+      }
+      setBtn('진단 시작', 'btn-blue');
+    };
+
+    window.enterSim = async () => {
+      const sessId = $('userCourseSelect').value;
+      const tSel = $('userTeamSelect');
+      const teamVal = tSel.value;
+      const teamText = tSel.options[tSel.selectedIndex]?.text || '';
+      if (!sessId || !teamVal) return alert('과정과 팀을 선택해 주세요.');
+
+      let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
+      try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
+
+      const closed = await checkIfClosed(sessId, teamVal);
+      sessionStorage.setItem('sim_sess', sessId);
+      sessionStorage.setItem('sim_team', teamVal);
+      sessionStorage.setItem('sim_teamText', teamText);
+      sessionStorage.setItem('sim_scenario', cfg.scenario || 'con1');
+      sessionStorage.setItem('sim_industry', cfg.industry || 'construction');
+
+      if (closed) {
+        await buildPhase2Screen(sessId, teamVal, cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        showScreen('surveyScreen');
+      } else {
+        buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
+        if (savedAnswers) {
+          JSON.parse(savedAnswers).forEach((item, i) => {
+            const radio = $(`q${i}_${item.score}`);
+            if (radio) radio.checked = true;
+          });
+          onAnswerChange();
+          $('surveyBadge').innerText = '수정 중';
+          $('surveyBadge').className = 'badge bg-amber';
+        }
+        showScreen('surveyScreen');
+      }
+    };
+
+    async function checkIfClosed(sessId, teamId) {
+      try {
+        const snap = await getDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'meta', 'status'));
+        return snap.exists() && snap.data().closed === true;
+      } catch (e) { return false; }
+    }
+
+    // ================================================================
+    //  설문 화면(1단계)
+    // ================================================================
+    function buildSurveyScreen(scenarioKey, industryKey, teamText) {
+      $('surveyTitle').innerText = `${teamText} · 12요인 진단`;
+      $('surveyBadge').className = 'badge bg-blue';
+      $('surveyBadge').innerText = '진행 중';
+      $('phase1Area').style.display = 'block';
+      $('phase2Area').style.display = 'none';
+      const sc = SCENARIOS[scenarioKey];
+      $('scenarioText').innerText = sc ? sc.text : '시나리오 정보 없음';
+      const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
+
+      $('questionList').innerHTML = qs.map((q, i) => {
+        const scales = [1, 2, 3, 4, 5].map((v, vi) => `<div class="lk-opt">
+          <input type="radio" name="q${i}" id="q${i}_${v}" value="${v}" data-weight="${q.weight}" onchange="onAnswerChange()">
+          <label class="lk-label" for="q${i}_${v}">
+            <div class="score-num">${v}</div>
+            <div class="score-anchor">${esc(q.anchors[vi])}</div>
+          </label>
+        </div>`).join('');
+        return `<div class="q-card" id="qcard${i}">
+          <div class="q-head">
+            <span class="q-no">${i + 1}</span>
+            <span class="q-title">${esc(q.factor)}</span>
+          </div>
+          <div class="q-desc">${esc(q.desc)}</div>
+          <div class="likert">${scales}</div>
+          <div class="lk-scale-legend"><span>← 기여 없음(안전)</span><span>매우 큰 기여(위험) →</span></div>
+        </div>`;
+      }).join('');
+
+      $('answeredCnt').innerText = '0';
+      $('progressPct').innerText = '0%';
+      $('progressFill').style.width = '0%';
+    }
+
+    window.onAnswerChange = () => {
+      const total = 12;
+      const done = document.querySelectorAll('#questionList input[type=radio]:checked').length;
+      $('answeredCnt').innerText = done;
+      const pct = Math.round(done / total * 100);
+      $('progressPct').innerText = pct + '%';
+      $('progressFill').style.width = pct + '%';
+      for (let i = 0; i < total; i++) {
+        const card = $(`qcard${i}`);
+        if (card) card.classList.toggle('answered', !!document.querySelector(`input[name="q${i}"]:checked`));
+      }
+    };
+
+    window.submitSurvey = async () => {
+      const sessId = sessionStorage.getItem('sim_sess');
+      const teamId = sessionStorage.getItem('sim_team');
+      const industryKey = sessionStorage.getItem('sim_industry');
+      const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
+      let scores = [], err = false;
+      qs.forEach((_, i) => {
+        const r = document.querySelector(`input[name="q${i}"]:checked`);
+        if (!r) err = true;
+        else scores.push({ factor: qs[i].factor, score: parseInt(r.value), weight: qs[i].weight, weighted: parseInt(r.value) * qs[i].weight });
+      });
+      if (err) return alert('12문항 전체에 응답해 주세요.');
+
+      try {
+        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
+        if (existingDocId && existingDocId !== 'true') {
+          const docSnap = await getDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId));
+          if (docSnap.exists()) {
+            await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), { scores, timestamp: new Date() });
+          } else {
+            const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), { scores, timestamp: new Date(), industry: industryKey });
+            sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+          }
+        } else {
+          const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), { scores, timestamp: new Date(), industry: industryKey });
+          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+        }
+        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+        sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
+        renderPersonalFeedback(scores);
+        showScreen('doneScreen');
+        if (typeof onCourseChange === 'function') onCourseChange();
+      } catch (e) { alert('전송 실패: ' + e.message); }
+    };
+
+    // 개인 피드백 — 본인 진단의 핵심요인(파레토 80%)만 제시 (정답은 비공개)
+    function renderPersonalFeedback(scores) {
+      const el = $('personalFeedback');
+      if (!el) return;
+      const sorted = [...scores].map(s => ({ name: s.factor, val: s.weighted })).sort((a, b) => b.val - a.val);
+      const total = sorted.reduce((s, x) => s + x.val, 0);
+      let cum = 0, idx = -1;
+      sorted.forEach((s, i) => { cum += s.val; if (total > 0 && cum / total >= 0.8 && idx === -1) idx = i; });
+      const myTop = sorted.slice(0, idx + 1);
+
+      el.innerHTML = `<div class="notice notice-blue" style="padding:16px;">
+        <div style="font-weight:800;color:#1e3a8a;margin-bottom:10px;">🔎 내가 지목한 핵심 위험 요인</div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;">
+          ${myTop.map((x, i) => `<span class="badge bg-blue" style="font-size:.85rem;">
+            ${i + 1}. ${esc(x.name)} <span style="opacity:.8;font-weight:600;">${total > 0 ? Math.round(x.val / total * 100) : 0}%</span></span>`).join('')}
+        </div>
+        <div class="hint" style="margin-top:10px;color:#1e40af;">팀원과 토론한 뒤, 마감 후 개선·예방대책을 입력하게 됩니다.</div>
+      </div>`;
+    }
+
+    // ================================================================
+    //  설문 화면(2단계) — 마감 후 개선·예방대책 입력
+    // ================================================================
+    async function buildPhase2Screen(sessId, teamId, scenarioKey, industryKey, teamText) {
+      $('surveyTitle').innerText = `${teamText} · 개선 및 예방대책`;
+      const badge = $('surveyBadge');
+      badge.className = 'badge bg-red';
+      badge.innerText = '설문 마감';
+      const sc = SCENARIOS[scenarioKey];
+      $('scenarioText').innerText = sc ? sc.text : '시나리오 정보 없음';
+      $('phase1Area').style.display = 'none';
+      const p2 = $('phase2Area');
+      p2.style.display = 'block';
+      p2.innerHTML = '<p class="empty">팀 진단 결과 분석 중…</p>';
+
+      const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
+      const factorNames = qs.map(q => q.factor);
+      const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
+      // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
+      const stat = analyzeTeam(snap, factorNames, []);
+      const pareto = stat.rows.filter(r => r.inPareto);
+
+      p2.innerHTML = `
+        <div class="notice notice-green" style="margin-bottom:14px;">
+          <b>[안내]</b> 설문이 마감되었습니다. 아래 <b>우리 팀의 핵심 위험 요인</b>을 근거로,
+          팀원과 토론 후 <b>개선·예방대책</b>을 작성해 주세요.
+        </div>
+
+        <div class="timer-box">
+          <div class="timer-cap">팀 토론 권장 시간</div>
+          <div class="timer-display" id="timerDisplay">05:00</div>
+          <div class="row" style="justify-content:center;margin-top:10px;">
+            <button class="btn btn-hazard btn-sm" id="timerStartBtn" onclick="startTimer()">타이머 시작</button>
+            <button class="btn btn-ghost btn-sm" onclick="resetTimer()">초기화</button>
+          </div>
+        </div>
+
+        <div class="card tight" style="margin-bottom:14px;">
+          <div class="eyebrow" style="margin-bottom:8px;">우리 팀 진단 — 핵심 위험 요인 (파레토 80%)</div>
+          ${stat.cnt > 0 ? paretoKeys(false) + paretoChart(stat.rows, { height: 220 }) + paretoLegend(pareto, { showHit: false })
+          : '<p class="empty">아직 응답 데이터가 없습니다.</p>'}
+        </div>
+
+        <label>개선 및 예방대책</label>
+        <textarea id="cmInput" rows="6" placeholder="토론 내용을 바탕으로 구체적인 예방대책을 입력하세요…"></textarea>
+        <div class="row">
+          <button class="btn btn-green btn-full" onclick="submitCountermeasure()">대책 제출</button>
+          <button class="btn btn-outline" style="min-width:90px;" onclick="showScreen('joinScreen')">취소</button>
+        </div>`;
+      initTimer(5 * 60);
+    }
+
+    // ── 토론 타이머 ─────────────────────────────────────
+    let timerInterval = null, timerDuration = 300, timerStartedAt = null, timerAlerted = false;
+    function initTimer(seconds) {
+      timerDuration = seconds; timerStartedAt = null; timerAlerted = false;
+      clearInterval(timerInterval); timerInterval = null;
+      renderTimer(seconds);
+      const b = $('timerStartBtn'); if (b) { b.innerText = '타이머 시작'; b.disabled = false; }
+    }
+    function renderTimer(remaining) {
+      const el = $('timerDisplay'); if (!el) return;
+      const r = Math.max(0, Math.round(remaining));
+      el.innerText = `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
+      el.className = 'timer-display ' + (r > 180 ? '' : r > 60 ? 'warning' : 'danger');
+    }
+    window.startTimer = () => {
+      if (timerInterval) return;
+      timerStartedAt = Date.now(); timerAlerted = false;
+      const b = $('timerStartBtn'); if (b) b.disabled = true;
+      timerInterval = setInterval(() => {
+        if (!timerStartedAt) return;
+        const remaining = timerDuration - (Date.now() - timerStartedAt) / 1000;
+        if (remaining <= 0) {
+          clearInterval(timerInterval); timerInterval = null; renderTimer(0);
+          if (!timerAlerted) { timerAlerted = true; alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.'); }
+          return;
+        }
+        renderTimer(remaining);
+      }, 500);
+    };
+    window.resetTimer = () => initTimer(5 * 60);
+
+    window.submitCountermeasure = async () => {
+      const sessId = sessionStorage.getItem('sim_sess');
+      const teamId = sessionStorage.getItem('sim_team');
+      const cmText = $('cmInput').value.trim();
+      if (!cmText) return alert('개선 및 예방대책을 입력해 주세요.');
+      try {
+        await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'countermeasures'), { text: cmText, timestamp: new Date() });
+        $('personalFeedback').innerHTML = `<div class="notice notice-green" style="padding:16px;text-align:center;">개선·예방대책이 저장되었습니다. 감사합니다.</div>`;
+        showScreen('doneScreen');
+      } catch (e) { alert('전송 실패: ' + e.message); }
+    };
+
+    // ================================================================
+    //  현황판 (실시간)
+    // ================================================================
+    window.goDashboard = () => {
+      refreshSelects();
+      Object.values(dashUnsubs).forEach(f => f()); dashUnsubs = {};
+      if (detailUnsub) { detailUnsub(); detailUnsub = null; }
+      $('dashTeamCards').innerHTML = '<p class="empty">과정을 선택하면 팀별 응답 현황이 실시간으로 표시됩니다.</p>';
+      $('dashDetail').style.display = 'none';
+      $('dashCourseSelect').value = '';
+      $('allSurveyControl').style.display = 'none';
+      showScreen('dashScreen');
+    };
+
+    window.onDashCourseChange = async () => {
+      const sess = $('dashCourseSelect').value;
+      currentDashSess = sess;
+      Object.values(dashUnsubs).forEach(f => f()); dashUnsubs = {};
+      if (detailUnsub) { detailUnsub(); detailUnsub = null; }
+      $('dashDetail').style.display = 'none';
+      const allCtrl = $('allSurveyControl');
+
+      if (!sess) {
+        $('dashTeamCards').innerHTML = '<p class="empty">과정을 선택하면 팀별 응답 현황이 실시간으로 표시됩니다.</p>';
+        allCtrl.style.display = 'none'; return;
+      }
+
+      const isClosed = await checkIfClosed(sess, 'team_1');
+      if (isClosed) {
+        allCtrl.style.display = 'none';
+        $('dashTeamCards').innerHTML = `<div class="notice notice-slate" style="text-align:center;padding:22px;">
+          <div style="font-size:1.05rem;font-weight:700;margin-bottom:12px;">✅ 이 과정은 전체 설문이 마감되었습니다.</div>
+          <button class="btn btn-outline" onclick="cancelAllSurveys()">마감 취소 (다시 응답 받기)</button>
+        </div>`;
+        return;
+      }
+      allCtrl.style.display = 'block';
+
+      let tCount = 6;
+      try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
+      $('dashTeamCards').innerHTML = `<div class="team-grid">${Array.from({ length: tCount }, (_, i) => `
+        <div class="team-card status-empty" id="card_team_${i + 1}" onclick="clickTeamCard('${esc(sess)}','team_${i + 1}','${i + 1}팀')">
+          <div class="tc-top"><span class="tc-name">${i + 1}팀</span><span class="tc-icon">⏳</span></div>
+          <div class="tc-count">로딩 중…</div>
+          <div class="tc-bar"><span style="width:0%"></span></div>
+        </div>`).join('')}</div>`;
+
+      for (let i = 1; i <= tCount; i++) {
+        const tid = `team_${i}`;
+        dashUnsubs[tid] = onSnapshot(collection(db, 'sessions', sess, 'teams', tid, 'submissions'), snap => updateTeamCard(tid, i, snap));
+      }
+    };
+
+    function updateTeamCard(teamId, num, snap) {
+      const card = $(`card_${teamId}`);
+      if (!card) return;
+      const cnt = snap.docs.length;
+      let statusClass, icon;
+      if (cnt > 4) { statusClass = 'status-done'; icon = '✅'; }
+      else if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
+      else { statusClass = 'status-empty'; icon = '⏳'; }
+      const sel = card.classList.contains('selected');
+      card.className = `team-card ${statusClass}${sel ? ' selected' : ''}`;
+      const pct = Math.min(100, cnt / 5 * 100);
+      card.innerHTML = `<div class="tc-top"><span class="tc-name">${num}팀</span><span class="tc-icon">${icon}</span></div>
+        <div class="tc-count"><b>${cnt}</b>명 응답</div>
+        <div class="tc-bar"><span style="width:${pct}%;background:${cnt > 4 ? 'var(--safe)' : cnt > 0 ? 'var(--warn)' : '#cbd5e1'}"></span></div>`;
+    }
+
+    window.clickTeamCard = (sessId, teamId, teamName) => {
+      document.querySelectorAll('.team-card').forEach(c => c.classList.remove('selected'));
+      const card = $(`card_${teamId}`); if (card) card.classList.add('selected');
+      $('dashDetailTitle').innerText = `${teamName} 응답 현황`;
+      $('dashDetail').style.display = 'block';
+      if (detailUnsub) detailUnsub();
+      detailUnsub = onSnapshot(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), snap => {
+        $('dashContent').innerHTML = `<div class="notice notice-slate">현재 <b>${snap.docs.length}명</b> 응답 완료. 상세 파레토 분석은 ‘파레토 분석 결과’ 화면에서 확인하세요.</div>`;
+      });
+    };
+
+    window.closeAllSurveys = async () => {
+      if (!currentDashSess) return;
+      if (!confirm('전체 설문을 마감하고 대책 입력 단계를 열까요?')) return;
+      try {
+        let tCount = 6;
+        const cfg = await getDoc(doc(db, 'course_configs', currentDashSess));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+        const batch = [];
+        for (let i = 1; i <= tCount; i++)
+          batch.push(setDoc(doc(db, 'sessions', currentDashSess, 'teams', `team_${i}`, 'meta', 'status'), { closed: true, closedAt: new Date() }));
+        await Promise.all(batch);
+        alert('전체 팀 설문이 마감되었습니다.');
+        onDashCourseChange();
+      } catch (error) { console.error(error); alert('마감 처리 중 오류가 발생했습니다.'); }
+    };
+
+    window.cancelAllSurveys = async () => {
+      if (!currentDashSess) return;
+      if (!confirm('전체 설문 마감을 취소할까요?\n참가자가 추가로 응답할 수 있게 됩니다.\n(기존 개선·예방대책은 그대로 보존됩니다.)')) return;
+      try {
+        let tCount = 6;
+        const cfg = await getDoc(doc(db, 'course_configs', currentDashSess));
+        if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+        const batch = [];
+        for (let i = 1; i <= tCount; i++)
+          batch.push(deleteDoc(doc(db, 'sessions', currentDashSess, 'teams', `team_${i}`, 'meta', 'status')));
+        await Promise.all(batch);
+        alert('전체 마감이 취소되었습니다. (개선·예방대책은 보존됨)');
+        onDashCourseChange();
+      } catch (error) { console.error(error); alert('처리 중 오류가 발생했습니다.'); }
+    };
+
+    // ================================================================
+    //  파레토 분석 결과 (전체 합산 + 팀별)
+    // ================================================================
+    window.goAllResult = () => {
+      refreshSelects();
+      $('resultCourseSelect').value = '';
+      $('resultContent').innerHTML = '<p class="empty">과정을 선택하면 분석 결과가 표시됩니다.</p>';
+      showScreen('resultScreen');
+    };
+
+    window.loadResultData = async () => {
+      const sessId = $('resultCourseSelect').value;
+      const div = $('resultContent');
+      if (!sessId) { div.innerHTML = '<p class="empty">과정을 선택해 주세요.</p>'; return; }
+      div.innerHTML = '<p class="empty">분석 중…</p>';
+
+      let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
+      try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
+      const sc = SCENARIOS[cfg.scenario || 'con1'];
+      const answerKeys = sc ? sc.answer : [];
+      const qs = QUESTIONS[cfg.industry || 'construction'];
+      const factorNames = qs.map(q => q.factor);
+
+      // 전체 합산용 누적 + 팀별 통계
+      const overallSums = new Array(12).fill(0);
+      let overallCnt = 0;
+      const teams = [];
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', `team_${i}`, 'submissions'));
+        const stat = analyzeTeam(snap, factorNames, answerKeys);
+        stat.sums.forEach((v, idx) => overallSums[idx] += v);
+        overallCnt += stat.cnt;
+        teams.push({ name: `${i}팀`, ...stat });
+      }
+
+      // 전체 파레토 모델
+      const overall = analyzeFromSums(overallSums, factorNames, answerKeys);
+      const overallPareto = overall.rows.filter(r => r.inPareto);
+      const classHit = overallPareto.filter(r => r.hit).length;
+
+      let html = `
+        <div class="notice notice-amber" style="margin-bottom:16px;">
+          <div style="font-size:1rem;font-weight:800;">시나리오 · ${esc(sc ? sc.label : '-')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;">
+            <b>전문가 정답 요인:</b>
+            ${answerKeys.map(k => `<span class="chip chip-hit">${esc(k)}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="eyebrow" style="margin-bottom:10px;">전체 종합 — 모든 팀 합산 (${overallCnt}명)</div>
+        <div class="card tight" style="margin-bottom:8px;">
+          ${overallCnt > 0
+          ? paretoKeys(true) + paretoChart(overall.rows, { height: 240, showHit: true }) + paretoLegend(overallPareto, { showHit: true })
+          : '<p class="empty">응답 데이터가 없습니다.</p>'}
+        </div>
+        <div class="notice notice-slate" style="margin-bottom:22px;">
+          전체 참가자가 지목한 핵심요인(80% 구간) ${overallPareto.length}개 중
+          <b style="color:var(--safe);">${classHit}개</b>가 전문가 정답과 일치했습니다.
+          ${answerKeys.length ? `(정답 ${answerKeys.length}개 중 <b>${overallPareto.filter(r => r.hit).length}</b>개 포착)` : ''}
+        </div>
+
+        <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토 — 80% 구간이 곧 그 팀의 ‘진단 결론’</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">`;
+
+      teams.forEach(t => {
+        if (!t.cnt) {
+          html += `<div class="card tight"><div style="font-weight:800;color:var(--brand-deep);">${t.name}</div><p class="empty">응답 없음</p></div>`;
+          return;
+        }
+        const pareto = t.rows.filter(r => r.inPareto);
+        html += `<div class="card tight">
+          <div class="section-head" style="margin-bottom:8px;">
+            <div style="font-weight:800;color:var(--brand-deep);">${t.name} <span class="muted" style="font-weight:600;font-size:.82rem;">· ${t.cnt}명</span></div>
+            <span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}" style="font-size:.72rem;">일치도 ${t.consensusRate}%</span>
+          </div>
+          ${paretoChart(t.rows, { height: 190, showHit: true })}
+          ${paretoLegend(pareto, { showHit: true })}
+        </div>`;
+      });
+      html += `</div>`;
+      div.innerHTML = html;
+    };
+
+    // sums 배열만으로 파레토 모델 생성 (전체 종합용)
+    function analyzeFromSums(sums, factorNames, answerKeys) {
+      const sorted = factorNames.map((nm, i) => ({ name: nm, val: sums[i] })).sort((a, b) => b.val - a.val);
+      const total = sorted.reduce((s, x) => s + x.val, 0);
+      let cum = 0, paretoIdx = -1;
+      const rows = sorted.map((it, i) => {
+        cum += it.val;
+        const cumPct = total > 0 ? cum / total * 100 : 0;
+        if (cumPct >= 80 && paretoIdx === -1) paretoIdx = i;
+        return { rank: i + 1, name: it.name, val: it.val, pct: total > 0 ? it.val / total * 100 : 0, cumPct, hit: answerKeys.includes(it.name) };
+      });
+      rows.forEach((r, i) => r.inPareto = paretoIdx === -1 ? true : i <= paretoIdx);
+      return { rows, total, paretoIdx };
+    }
+
+    // ================================================================
+    //  팀 성적 & 개선대책
+    // ================================================================
+    window.goCountermeasures = () => {
+      refreshSelects();
+      $('cmCourseSelect').value = '';
+      $('cmContent').innerHTML = '<p class="empty">과정을 선택하면 팀 성적과 개선대책이 표시됩니다.</p>';
+      showScreen('countermeasureScreen');
+    };
+
+    window.loadCountermeasureData = async () => {
+      const sessId = $('cmCourseSelect').value;
+      const div = $('cmContent');
+      if (!sessId) { div.innerHTML = '<p class="empty">과정을 선택해 주세요.</p>'; return; }
+      div.innerHTML = '<p class="empty">데이터 불러오는 중…</p>';
+
+      let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
+      try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = c.data(); } catch (e) { }
+      const sc = SCENARIOS[cfg.scenario || 'con1'];
+      const answerKeys = sc ? sc.answer : [];
+      const qs = QUESTIONS[cfg.industry || 'construction'];
+      const factorNames = qs.map(q => q.factor);
+
+      const teams = [];
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', `team_${i}`, 'submissions'));
+        teams.push({ name: `${i}팀`, idx: i, ...analyzeTeam(snap, factorNames, answerKeys) });
+      }
+
+      // ── 성적 요약 테이블 ──
+      let rows = '';
+      teams.forEach(t => {
+        if (!t.cnt) {
+          rows += `<tr><td><strong>${t.name}</strong></td><td colspan="6" class="muted" style="font-size:.82rem;">응답 없음</td></tr>`;
+          return;
+        }
+        const rankCols = [0, 1, 2].map(r => {
+          const it = t.top3[r];
+          if (!it) return `<td style="color:#e2e8f0;">-</td>`;
+          return `<td><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.76rem;padding:3px 8px;">${esc(it.name)}</span>
+            <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%</div></td>`;
+        }).join('');
+        const evalTxt = getTeamEvaluation(t);
+        rows += `<tr>
+          <td><strong>${t.name}</strong><br><span style="font-size:.76rem;color:var(--muted);">${t.cnt}명</span></td>
+          <td><span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></td>
+          ${rankCols}
+          <td><strong style="color:var(--brand);">${t.masterCount}</strong>명</td>
+          <td><strong style="color:var(--purple);">${t.transcendentCount}</strong>명</td>
+          <td style="line-height:1.4;">
+            <strong style="color:${accColor(t.accuracy)};font-size:1rem;">${t.accuracy}%</strong><br>
+            <span style="font-size:.74rem;color:#475569;white-space:nowrap;">${evalTxt}</span>
+          </td>
+        </tr>`;
+      });
+
+      let html = `
+        <div class="notice notice-amber" style="margin-bottom:16px;">
+          <div style="font-size:1rem;font-weight:800;">시나리오 · ${esc(sc ? sc.label : '-')}</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;">
+            <b>전문가 정답 요인:</b>
+            ${answerKeys.map(k => `<span class="chip chip-hit">${esc(k)}</span>`).join('')}
+          </div>
+        </div>
+
+        <div class="eyebrow" style="margin-bottom:10px;">팀 성적표</div>
+        <div class="table-wrap" style="margin-bottom:12px;">
+          <table>
+            <thead><tr>
+              <th>팀</th><th>팀원 일치도</th><th>1순위</th><th>2순위</th><th>3순위</th>
+              <th>능력자</th><th>초월자</th><th>팀 정확도</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="notice notice-slate" style="margin-bottom:22px;font-size:.82rem;">
+          <b style="color:var(--brand);">능력자</b> · 본인이 고른 핵심요인 3개가 전문가 정답과 100% 일치한 팀원 &nbsp;|&nbsp;
+          <b style="color:var(--purple);">초월자</b> · 소속 팀 평균 정확도보다 개인 정확도가 높아 팀을 끌어올린 팀원 &nbsp;|&nbsp;
+          <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
+        </div>
+
+        <div class="eyebrow" style="margin-bottom:10px;">팀별 개선 및 예방대책</div>`;
+
+      for (let i = 1; i <= cfg.teamCount; i++) {
+        const cmSnap = await getDocs(collection(db, 'sessions', sessId, 'teams', `team_${i}`, 'countermeasures'));
+        const t = teams.find(x => x.idx === i);
+        const acc = t && t.cnt ? t.accuracy : null;
+        html += `<div class="card tight" style="margin-bottom:12px;">
+          <div class="section-head" style="margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:8px;">
+            <h4 style="color:var(--brand-deep);margin:0;">${i}팀 개선·예방대책</h4>
+            ${acc !== null ? `<span class="badge" style="background:${accColor(acc)};">팀 정확도 ${acc}%</span>` : ''}
+          </div>`;
+        if (cmSnap.empty) {
+          html += `<p class="muted" style="font-size:.88rem;padding:4px 0;">제출된 대책이 없습니다.</p>`;
+        } else {
+          let num = 1;
+          cmSnap.forEach(d => {
+            html += `<div class="cm-item"><span class="cm-tag">참여자${num}</span><span class="cm-text">${esc(d.data().text)}</span></div>`;
+            num++;
+          });
+        }
+        html += `</div>`;
+      }
+      div.innerHTML = html;
+    };
+
+    // ================================================================
+    //  데이터 조회 / 삭제 / CSV / 전체 초기화
+    // ================================================================
+    window.loadAdminData = async () => {
+      document.querySelector('.danger-zone').classList.add('show');
+      const div = $('adminDataList');
+      div.innerHTML = '<p class="empty">스캔 중…</p>';
+      const tasks = [];
+      for (const sess of courseList) {
+        for (let i = 1; i <= MAX_TEAMS; i++) {
+          const tid = `team_${i}`;
+          tasks.push(getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'))
+            .then(snap => snap.docs.map(d => ({ type: 'sub', kind: '설문', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp }))).catch(() => []));
+          tasks.push(getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'))
+            .then(snap => snap.docs.map(d => ({ type: 'cm', kind: '예방대책', sess, team: `${i}팀`, teamId: tid, id: d.id, ts: d.data().timestamp }))).catch(() => []));
+        }
+      }
+      let rows = (await Promise.all(tasks)).flat();
+      if (!rows.length) { div.innerHTML = '<p class="empty">데이터 없음</p>'; return; }
+      rows.sort((a, b) => {
+        const iA = courseList.indexOf(a.sess), iB = courseList.indexOf(b.sess);
+        if (iA !== iB) return iB - iA;
+        return (b.ts ? b.ts.seconds : 0) - (a.ts ? a.ts.seconds : 0);
+      });
+      div.innerHTML = `<div class="table-wrap"><table style="font-size:.82rem;">
+        <thead><tr><th>과정</th><th>팀</th><th>유형</th><th>제출 시각</th><th>삭제</th></tr></thead>
+        <tbody>${rows.map(r => {
+          const onclick = r.type === 'cm' ? `delCM('${esc(r.sess)}','${r.teamId}','${r.id}')` : `delDoc('${esc(r.sess)}','${r.teamId}','${r.id}')`;
+          const color = r.type === 'cm' ? 'var(--safe)' : 'var(--brand)';
+          return `<tr><td>${esc(r.sess)}</td><td>${r.team}</td>
+            <td style="color:${color};font-weight:700;">${r.kind}</td>
+            <td style="font-size:.78rem;">${r.ts ? new Date(r.ts.seconds * 1000).toLocaleString('ko-KR') : '-'}</td>
+            <td><button class="btn btn-red btn-sm" onclick="${onclick}">삭제</button></td></tr>`;
+        }).join('')}</tbody></table></div>`;
+    };
+
+    window.delDoc = async (sess, teamId, docId) => {
+      if (!confirm('이 설문 응답을 삭제하시겠습니까?')) return;
+      try { await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId)); alert("삭제되었습니다."); loadAdminData(); }
+      catch (e) { alert("삭제 실패: " + e.message); }
+    };
+    window.delCM = async (sess, teamId, docId) => {
+      if (!confirm('이 예방대책 데이터를 삭제하시겠습니까?')) return;
+      try { await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'countermeasures', docId)); alert("삭제되었습니다."); loadAdminData(); }
+      catch (e) { alert("삭제 실패: " + e.message); }
+    };
+
+    window.exportCSV = async () => {
+      if (!courseList.length) return alert('과정이 없습니다.');
+      let csv = '\uFEFF';
+      csv += '========== [1. 설문 응답 데이터] ==========\n';
+      csv += '과정명,팀,제출시각,업종';
+      for (let i = 1; i <= 12; i++) csv += `,요인${i} 이름,요인${i}(점수),요인${i}(가중점수)`;
+      csv += '\n';
+
+      let cmRows = [];
+      for (const sess of courseList) {
+        let cfg = { teamCount: 6, industry: 'construction' };
+        try { const c = await getDoc(doc(db, 'course_configs', sess)); if (c.exists()) cfg = c.data(); } catch (e) { }
+        const industryKey = cfg.industry || 'construction';
+        const currentFactors = (QUESTIONS[industryKey] || QUESTIONS.construction).map(q => q.factor);
+
+        for (let i = 1; i <= cfg.teamCount; i++) {
+          const tid = `team_${i}`;
+          const snap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'submissions'));
+          snap.forEach(d => {
+            const data = d.data();
+            const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
+            let row = `"${sess}","${i}팀","${ts}","${industryKey}"`;
+            if (data.scores && Array.isArray(data.scores)) {
+              const map = {};
+              data.scores.forEach(s => { map[s.factor] = s; });
+              currentFactors.forEach(f => { const s = map[f]; row += `,"${f}",${s ? s.score : ''},${s ? s.weighted : ''}`; });
+            }
+            csv += row + '\n';
+          });
+          const cmSnap = await getDocs(collection(db, 'sessions', sess, 'teams', tid, 'countermeasures'));
+          cmSnap.forEach(d => {
+            const data = d.data();
+            const ts = data.timestamp ? new Date(data.timestamp.seconds * 1000).toLocaleString('ko-KR') : '-';
+            const safeText = (data.text || '').replace(/"/g, '""');
+            cmRows.push(`"${sess}","${i}팀","${ts}","${safeText}"`);
+          });
+        }
+      }
+      csv += '\n\n========== [2. 개선 및 예방대책 데이터] ==========\n';
+      csv += '과정명,팀,제출시각,개선 및 예방대책(텍스트)\n';
+      csv += cmRows.join('\n') + '\n';
+
+      const fileName = `휴먼에러_통합데이터_${new Date().toLocaleDateString('ko-KR').replace(/[.\s]/g, '')}.csv`;
+      const link = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' })),
+        download: fileName, style: 'visibility:hidden'
+      });
+      document.body.appendChild(link); link.click(); document.body.removeChild(link);
+      alert(`다운로드 완료: ${fileName}`);
+    };
+
+    window.deleteAll = async () => {
+      if (!confirm('⚠️ 모든 과정과 응답 데이터를 영구 삭제합니다!')) return;
+      if (!confirm('마지막 확인 — 정말 삭제하시겠습니까?')) return;
+      let grandRemaining = 0, grandDeleted = 0;
+      for (const sess of courseList) {
+        const { totalDeleted, remaining } = await wipeCourseTeams(sess);
+        grandDeleted += totalDeleted; grandRemaining += remaining;
+        if (remaining === 0) { try { await deleteDoc(doc(db, 'course_configs', sess)); } catch (e) { } }
+      }
+      if (grandRemaining > 0) {
+        alert(`일부 데이터(${grandRemaining}건)가 삭제되지 않았습니다.\n네트워크 확인 후 다시 시도해 주세요.`);
+        return;
+      }
+      await setDoc(doc(db, 'settings', 'courses'), { list: [], activeList: [] });
+      localStorage.clear(); sessionStorage.clear();
+      alert(`모든 서버 데이터(설문 ${grandDeleted}건 포함)와 로컬 설정이 초기화되었습니다. 새로고침합니다.`);
+      location.reload();
+    };
+  </script>
+
+</body>
+
+</html>

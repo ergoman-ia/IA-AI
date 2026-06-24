@@ -172,6 +172,9 @@
       border-color: var(--hazard);
     }
 
+    /* 스마트폰에서는 강사 모드 진입을 노출하지 않음 */
+    body.is-phone .admin-link { display: none !important; }
+
     /* ---------- 카드 / 패널 ---------- */
     .card {
       background: var(--surface);
@@ -1779,7 +1782,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     // ================================================================
     //  과정 목록 동기화
     // ================================================================
+    // 스마트폰(폰) 단말 판별 — 태블릿/PC는 제외(강사 모드는 PC 전용)
+    function isPhoneDevice() {
+      const ua = navigator.userAgent || navigator.vendor || '';
+      return /Android.*Mobile|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini|Windows Phone/i.test(ua);
+    }
+
     window.onload = async () => {
+      if (isPhoneDevice()) document.body.classList.add('is-phone');
       if (!db) return;
       const settingsRef = doc(db, 'settings', 'courses');
       const settingsSnap = await getDoc(settingsRef);
@@ -1835,7 +1845,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     const showAdminLogin = () => { $('adminLogin').style.display = 'block'; $('adminPanel').style.display = 'none'; $('adminPw').value = ''; };
     const showAdminPanel = () => { $('adminLogin').style.display = 'none'; $('adminPanel').style.display = 'block'; };
 
-    window.goAdmin = () => { adminAuthed ? showAdminPanel() : showAdminLogin(); showScreen('adminScreen'); };
+    window.goAdmin = () => {
+      if (isPhoneDevice()) { alert('강사 모드는 PC(데스크톱) 환경에서만 사용할 수 있습니다.'); return; }
+      adminAuthed ? showAdminPanel() : showAdminLogin(); showScreen('adminScreen');
+    };
     window.checkAdmin = () => {
       if ($('adminPw').value === ADMIN_PW) { adminAuthed = true; showAdminPanel(); $('adminPw').value = ''; }
       else alert('비밀번호가 일치하지 않습니다.');

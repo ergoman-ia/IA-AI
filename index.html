@@ -1660,7 +1660,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     // ================================================================
     //  공통 통계 엔진 — 과거 데이터와 동일한 공식을 한 곳에서 계산
-    //   (파레토 80% · 개인 정확도 · 팀 정확도 · 능력자 · 초월자 · 일치도)
+    //   (파레토 80% · 개인 정확도 · 팀 정확도 · 능력자 · 일치도)
     // ================================================================
     function analyzeTeam(snap, factorNames, answerKeys) {
       const sums = new Array(12).fill(0);
@@ -1705,12 +1705,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const top3 = rows.slice(0, 3);
       const top3Names = top3.map(x => x.name);
 
-      // 팀 정확도 / 능력자 / 초월자
-      let accuracy = 0, masterCount = 0, transcendentCount = 0;
+      // 팀 정확도 / 능력자
+      let accuracy = 0, masterCount = 0;
       if (indivAcc.length > 0) {
         accuracy = Math.round(indivAcc.reduce((a, b) => a + b, 0) / indivAcc.length);
         masterCount = indivAcc.filter(a => a === 100).length;
-        transcendentCount = indivAcc.filter(a => a > accuracy).length;
       }
       // 팀원 일치도 (개인 선택이 팀 Top3에 집중된 비율)
       let consensusRate = 0;
@@ -1719,7 +1718,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         consensusRate = Math.round(focus / indivTop3.length * 100);
       }
 
-      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, transcendentCount, consensusRate };
+      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, consensusRate };
     }
 
     function accColor(a) { return a >= 70 ? 'var(--safe)' : a >= 40 ? 'var(--warn)' : 'var(--danger)'; }
@@ -1763,7 +1762,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const fill = r.inPareto ? (r.hit ? 'var(--pareto-hit)' : 'var(--pareto)') : 'var(--pareto-rest)';
         bars += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" rx="2" fill="${fill}"><title>${esc(r.name)} · ${Math.round(r.pct)}%</title></rect>`;
         bars += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(yBot + 13).toFixed(1)}" text-anchor="middle" class="pc-rank ${r.inPareto ? 'on' : ''}">${r.rank}</text>`;
-        if (r.hit && opts.showHit) marks += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-hit">✓</text>`;
+        if (r.hit && opts.showHit && opts.mark !== false) marks += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-hit">✓</text>`;
         cumPts.push([bx + barW / 2, yOf(r.cumPct)]);
       });
 
@@ -1781,20 +1780,21 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     // 차트 아래 순위 범례 (요인명 매핑)
     function paretoLegend(rows, opts = {}) {
       const showHit = opts.showHit;
+      const showMark = opts.mark !== false;
       return `<div class="pareto-legend">` + rows.map(r => {
         const cls = showHit && r.hit ? 'hit' : r.inPareto ? 'in' : '';
         return `<div class="pl-row ${cls}">
           <span class="pl-rank">${r.rank}</span>
-          <span class="pl-name">${esc(r.name)}${showHit && r.hit ? ' ✓' : ''}</span>
+          <span class="pl-name">${esc(r.name)}${showHit && r.hit && showMark ? ' ✓' : ''}</span>
           <span class="pl-pct">${Math.round(r.pct)}%</span>
           <span class="pl-cum">누적 ${Math.round(r.cumPct)}%</span>
         </div>`;
       }).join('') + `</div>`;
     }
 
-    const paretoKeys = (showHit) => `<div class="legend-keys">
+    const paretoKeys = (showHit, hitLabel) => `<div class="legend-keys">
       <span class="lk"><i style="background:var(--pareto)"></i>핵심요인(80%)</span>
-      ${showHit ? '<span class="lk"><i style="background:var(--pareto-hit)"></i>전문가 정답 일치</span>' : ''}
+      ${showHit ? `<span class="lk"><i style="background:var(--pareto-hit)"></i>${hitLabel || '전문가 정답 일치'}</span>` : ''}
       <span class="lk"><i style="background:var(--pareto-rest)"></i>그 외</span>
       <span class="lk"><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--ink)" stroke-width="2"/></svg>누적 비율</span>
     </div>`;
@@ -2348,33 +2348,32 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         teams.push({ name: `${i}팀`, ...stat });
       }
 
-      // 전체 파레토 모델
+      // 전체 파레토 모델 — 전체 1·2·3순위를 '합의 핵심요인'으로 녹색 표시하고,
+      // 각 팀 차트에서도 이 3개와 일치하는 요인을 같은 녹색으로 표시한다.
       const overall = analyzeFromSums(overallSums, factorNames, answerKeys);
+      overall.rows.forEach(r => r.hit = r.rank <= 3);                 // 전체 상위 3순위 = 녹색
       const overallPareto = overall.rows.filter(r => r.inPareto);
-      const classHit = overallPareto.filter(r => r.hit).length;
+      const consensusKeys = overall.rows.slice(0, 3).map(r => r.name); // 팀 비교 기준
 
       let html = `
         <div class="notice notice-amber" style="margin-bottom:16px;">
           <div style="font-size:1rem;font-weight:800;">시나리오 · ${esc(sc ? sc.label : '-')}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;">
-            <b>전문가 정답 요인:</b>
-            ${answerKeys.map(k => `<span class="chip chip-hit">${esc(k)}</span>`).join('')}
-          </div>
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">전체 종합 — 모든 팀 합산 (${overallCnt}명)</div>
         <div class="card tight" style="margin-bottom:8px;">
           ${overallCnt > 0
-          ? paretoKeys(true) + paretoChart(overall.rows, { height: 240, showHit: true }) + paretoLegend(overallPareto, { showHit: true })
+          ? paretoKeys(true, '전체 1·2·3순위') + paretoChart(overall.rows, { height: 240, showHit: true, mark: false }) + paretoLegend(overallPareto, { showHit: true, mark: false })
           : '<p class="empty">응답 데이터가 없습니다.</p>'}
         </div>
         <div class="notice notice-slate" style="margin-bottom:22px;">
-          전체 참가자가 지목한 핵심요인(80% 구간) ${overallPareto.length}개 중
-          <b style="color:var(--safe);">${classHit}개</b>가 전문가 정답과 일치했습니다.
-          ${answerKeys.length ? `(정답 ${answerKeys.length}개 중 <b>${overallPareto.filter(r => r.hit).length}</b>개 포착)` : ''}
+          ${overallCnt > 0
+          ? `전체 합산 기준 핵심요인은 <b>${consensusKeys.map(esc).join(' · ')}</b> 입니다. <span class="muted">(녹색 = 1·2·3순위)</span>`
+          : '전체 응답이 모이면 합의 핵심요인이 표시됩니다.'}
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토 — 80% 구간이 곧 그 팀의 ‘진단 결론’</div>
+        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.</div>` : ''}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">`;
 
       teams.forEach(t => {
@@ -2382,6 +2381,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           html += `<div class="card tight"><div style="font-weight:800;color:var(--brand-deep);">${t.name}</div><p class="empty">응답 없음</p></div>`;
           return;
         }
+        t.rows.forEach(r => r.hit = consensusKeys.includes(r.name)); // 전체 상위 3순위와 일치 → 녹색
         const pareto = t.rows.filter(r => r.inPareto);
         html += `<div class="card tight">
           <div class="section-head" style="margin-bottom:8px;">
@@ -2459,7 +2459,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <td><span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></td>
           ${rankCols}
           <td><strong style="color:var(--brand);">${t.masterCount}</strong>명</td>
-          <td><strong style="color:var(--purple);">${t.transcendentCount}</strong>명</td>
           <td style="line-height:1.4;">
             <strong style="color:${accColor(t.accuracy)};font-size:1rem;">${t.accuracy}%</strong><br>
             <span style="font-size:.74rem;color:#475569;white-space:nowrap;">${evalTxt}</span>
@@ -2481,14 +2480,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           <table>
             <thead><tr>
               <th>팀</th><th>팀원 일치도</th><th>1순위</th><th>2순위</th><th>3순위</th>
-              <th>능력자</th><th>초월자</th><th>팀 정확도</th>
+              <th>능력자</th><th>팀 정확도</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
         </div>
         <div class="notice notice-slate" style="margin-bottom:22px;font-size:.82rem;">
           <b style="color:var(--brand);">능력자</b> · 본인이 고른 핵심요인 3개가 전문가 정답과 100% 일치한 팀원 &nbsp;|&nbsp;
-          <b style="color:var(--purple);">초월자</b> · 소속 팀 평균 정확도보다 개인 정확도가 높아 팀을 끌어올린 팀원 &nbsp;|&nbsp;
           <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
         </div>
 

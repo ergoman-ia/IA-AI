@@ -1909,6 +1909,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         try {
           [...Array(sessionStorage.length).keys()].map(i => sessionStorage.key(i))
             .filter(k => k && k.includes(nm)).forEach(k => sessionStorage.removeItem(k));
+          [...Array(localStorage.length).keys()].map(i => localStorage.key(i))
+            .filter(k => k && k.includes(nm)).forEach(k => localStorage.removeItem(k));
         } catch (e) { }
         alert(`‘${nm}’ 과정과 관련 데이터(설문 ${totalDeleted}건 포함)가 모두 삭제되었습니다.`);
       } catch (error) {
@@ -1935,7 +1937,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       try { const cfg = await getDoc(doc(db, 'course_configs', sess)); if (cfg.exists()) tCount = cfg.data().teamCount || 6; } catch (e) { }
       tSel.innerHTML = Array.from({ length: tCount }, (_, i) => `<option value="team_${i + 1}">${i + 1}팀</option>`).join('');
 
-      const submittedTeam = sessionStorage.getItem(`submitted_team_${sess}`);
+      const submittedTeam = localStorage.getItem(`submitted_team_${sess}`);
       if (submittedTeam) { tSel.value = submittedTeam; tSel.disabled = true; }
       else tSel.disabled = false;
 
@@ -1944,16 +1946,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       if (isClosed) { setBtn('개선 및 예방대책 입력', 'btn-green'); return; }
 
-      const existingDocId = sessionStorage.getItem(`submitted_${sess}`);
+      const existingDocId = localStorage.getItem(`submitted_${sess}`);
       if (existingDocId && existingDocId !== 'true') {
         const team = submittedTeam || 'team_1';
         try {
           const docSnap = await getDoc(doc(db, 'sessions', sess, 'teams', team, 'submissions', existingDocId));
           if (docSnap.exists()) { setBtn('내 진단 수정', 'btn-orange'); return; }
         } catch (e) { }
-        sessionStorage.removeItem(`submitted_${sess}`);
-        sessionStorage.removeItem(`submitted_team_${sess}`);
-        sessionStorage.removeItem(`answers_${sess}`);
+        localStorage.removeItem(`submitted_${sess}`);
+        localStorage.removeItem(`submitted_team_${sess}`);
+        localStorage.removeItem(`answers_${sess}`);
       }
       setBtn('진단 시작', 'btn-blue');
     };
@@ -1980,7 +1982,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         showScreen('surveyScreen');
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
-        const savedAnswers = sessionStorage.getItem(`answers_${sessId}`);
+        const savedAnswers = localStorage.getItem(`answers_${sessId}`);
         if (savedAnswers) {
           JSON.parse(savedAnswers).forEach((item, i) => {
             const radio = $(`q${i}_${item.score}`);
@@ -2065,21 +2067,21 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (err) return alert('12문항 전체에 응답해 주세요.');
 
       try {
-        const existingDocId = sessionStorage.getItem(`submitted_${sessId}`);
+        const existingDocId = localStorage.getItem(`submitted_${sessId}`);
         if (existingDocId && existingDocId !== 'true') {
           const docSnap = await getDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId));
           if (docSnap.exists()) {
             await updateDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'submissions', existingDocId), { scores, timestamp: new Date() });
           } else {
             const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), { scores, timestamp: new Date(), industry: industryKey });
-            sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+            localStorage.setItem(`submitted_${sessId}`, docRef.id);
           }
         } else {
           const docRef = await addDoc(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'), { scores, timestamp: new Date(), industry: industryKey });
-          sessionStorage.setItem(`submitted_${sessId}`, docRef.id);
+          localStorage.setItem(`submitted_${sessId}`, docRef.id);
         }
-        sessionStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
-        sessionStorage.setItem(`submitted_team_${sessId}`, teamId);
+        localStorage.setItem(`answers_${sessId}`, JSON.stringify(scores));
+        localStorage.setItem(`submitted_team_${sessId}`, teamId);
         renderPersonalFeedback(scores);
         showScreen('doneScreen');
         if (typeof onCourseChange === 'function') onCourseChange();
@@ -2245,7 +2247,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div class="team-card status-empty" id="card_team_${i + 1}" onclick="clickTeamCard('${esc(sess)}','team_${i + 1}','${i + 1}팀')">
           <div class="tc-top"><span class="tc-name">${i + 1}팀</span><span class="tc-icon">⏳</span></div>
           <div class="tc-count">로딩 중…</div>
-          <div class="tc-bar"><span style="width:0%"></span></div>
         </div>`).join('')}</div>`;
 
       for (let i = 1; i <= tCount; i++) {
@@ -2258,16 +2259,15 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const card = $(`card_${teamId}`);
       if (!card) return;
       const cnt = snap.docs.length;
+      // 조원 수는 팀마다 3·4·6명 등으로 사전 확정되지 않으므로
+      // '완료(5명 이상=초록)' 임계값을 두지 않고 응답 유무만 표시한다.
       let statusClass, icon;
-      if (cnt > 4) { statusClass = 'status-done'; icon = '✅'; }
-      else if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
+      if (cnt > 0) { statusClass = 'status-progress'; icon = '✏️'; }
       else { statusClass = 'status-empty'; icon = '⏳'; }
       const sel = card.classList.contains('selected');
       card.className = `team-card ${statusClass}${sel ? ' selected' : ''}`;
-      const pct = Math.min(100, cnt / 5 * 100);
       card.innerHTML = `<div class="tc-top"><span class="tc-name">${num}팀</span><span class="tc-icon">${icon}</span></div>
-        <div class="tc-count"><b>${cnt}</b>명 응답</div>
-        <div class="tc-bar"><span style="width:${pct}%;background:${cnt > 4 ? 'var(--safe)' : cnt > 0 ? 'var(--warn)' : '#cbd5e1'}"></span></div>`;
+        <div class="tc-count"><b>${cnt}</b>명 응답</div>`;
     }
 
     window.clickTeamCard = (sessId, teamId, teamName) => {

@@ -2030,7 +2030,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     }
 
     const paretoKeys = (showHit, hitLabel) => `<div class="legend-keys">
-      <span class="lk"><i style="background:var(--pareto)"></i>핵심요인(80%)</span>
       ${showHit ? `<span class="lk"><i style="background:var(--pareto-hit)"></i>${hitLabel || '전문가 정답 일치'}</span>` : ''}
       <span class="lk"><i style="background:var(--pareto-rest)"></i>그 외</span>
       <span class="lk"><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--ink)" stroke-width="2"/></svg>누적 비율</span>

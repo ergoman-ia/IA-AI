@@ -1139,6 +1139,64 @@
       line-height: 1.5;
     }
 
+    .sim-key-row {
+      border: 1px solid var(--line);
+      background: var(--surface-2);
+      border-radius: var(--r-sm);
+      padding: 10px 12px;
+      margin-bottom: 16px;
+    }
+
+    .sim-key-label {
+      font-size: .82rem;
+      font-weight: 700;
+      color: var(--brand-deep);
+      margin-bottom: 7px;
+    }
+
+    .sim-key-label span {
+      font-weight: 500;
+      color: var(--muted);
+      font-size: .76rem;
+    }
+
+    .sim-key-input {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    .sim-key-input input {
+      flex: 1 1 220px;
+      min-width: 0;
+      padding: 8px 10px;
+      border: 1px solid var(--line-2);
+      border-radius: 7px;
+      font-size: .85rem;
+      font-family: var(--mono);
+    }
+
+    .sim-key-input input:focus {
+      outline: none;
+      border-color: var(--brand);
+      box-shadow: var(--ring);
+    }
+
+    .sim-key-status {
+      font-size: .76rem;
+      margin-top: 7px;
+      min-height: 1em;
+    }
+
+    .sim-key-status.on {
+      color: var(--safe);
+      font-weight: 700;
+    }
+
+    .sim-key-status.off {
+      color: var(--muted);
+    }
+
     .sim-head {
       display: flex;
       align-items: center;
@@ -1549,7 +1607,18 @@
         </div>
         <label>분석할 교과과정</label>
         <select id="cmCourseSelect" onchange="loadCountermeasureData()"
-          style="color:var(--brand);font-weight:700;margin-bottom:16px;"></select>
+          style="color:var(--brand);font-weight:700;margin-bottom:12px;"></select>
+
+        <div class="sim-key-row">
+          <div class="sim-key-label">🤖 Gemini API 키 <span>(선택 · 입력 시 의미 기반 AI 유사도 분석 사용)</span></div>
+          <div class="sim-key-input">
+            <input type="password" id="geminiKeyInput" placeholder="AIza... (미입력 시 로컬 유사도 엔진 사용)" autocomplete="off">
+            <button class="btn btn-blue btn-sm" onclick="saveGeminiKey()">적용</button>
+            <button class="btn btn-outline btn-sm" onclick="clearGeminiKey()">해제</button>
+          </div>
+          <div class="sim-key-status" id="geminiKeyStatus"></div>
+        </div>
+
         <div id="cmContent">
           <p class="empty">과정을 선택하면 팀 성적과 개선대책이 표시됩니다.</p>
         </div>
@@ -2920,7 +2989,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }
 
       /* [차용] Post analyzeWithGemini 방식 — 개선·예방대책용 프롬프트로 각색 */
+      let KEY_OVERRIDE = null;
+      try { KEY_OVERRIDE = (typeof localStorage !== 'undefined' && localStorage.getItem('GEMINI_API_KEY')) || null; } catch (e) {}
+      function setKey(k) {
+        KEY_OVERRIDE = (k && k.trim()) ? k.trim() : null;
+        try {
+          if (KEY_OVERRIDE) localStorage.setItem('GEMINI_API_KEY', KEY_OVERRIDE);
+          else localStorage.removeItem('GEMINI_API_KEY');
+        } catch (e) {}
+      }
+      function hasKey() { return !!KEY_OVERRIDE; }
       async function getGeminiKey() {
+        if (KEY_OVERRIDE) return KEY_OVERRIDE;                 // 화면에서 입력한 키 우선
         try { const s = await import('./secrets.js'); return s.GEMINI_API_KEY || null; }
         catch (e) { return null; }
       }
@@ -2930,14 +3010,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const model = genAI.getGenerativeModel({ model: 'gemini-3-flash-preview' });
         const payload = items.map(it => ({ text: it.text, name: it.who }));
         const prompt = `당신은 건설/산업 현장의 최고 안전보건 전문가입니다.
-아래 [기준 카테고리]를 "법전"처럼 참고하여 [개선·예방대책 목록]을 의미가 유사한 것끼리 그룹화하세요.
+아래 [기준 카테고리]를 "법전"처럼 참고하여 [개선·예방대책 목록]을 "의미" 기준으로 유사한 것끼리 그룹화하세요.
+입력 항목들은 참여자가 한 번에 작성한 글을 콤마·문장 단위로 1차 분해한 결과라, 완전한 문장이 아니라 단어 나열이나 조각일 수 있습니다.
 
 [지시사항]
-1. 표현/사투리/현장은어/오타가 달라도 같은 취지의 대책이면 하나의 그룹으로 묶으세요.
-2. 부정/긍정 표현이 섞여 있어도 동일 주제면 함께 묶으세요. (예: "안전모 착용" / "보호구 미착용 개선")
-3. 그룹 대표명칭(category)은 [기준 카테고리]의 이름을 우선 사용하고, 적합한 것이 없으면 핵심 키워드로 지으세요.
-4. representative_text 는 그룹을 대표하는 통합 문장으로 새로 작성하세요.
-5. 반드시 아래 형식의 "순수 JSON 배열"로만 출력하세요. (Markdown 코드블록 금지)
+1. 의미 기반 재분해: 한 항목 안에 서로 다른 주제가 섞여 있으면(예: "안전모 정리정돈 TBM"), 의미 단위로 나눈 뒤 각 의미를 알맞은 그룹에 배치하세요. 이때 원래 작성자(name)는 그대로 유지하세요.
+2. 단어만 나열된 항목도 그 단어가 가리키는 안전주제로 해석해 묶으세요. (예: "하이바" → 안전모/보호구)
+3. 표현/사투리/현장은어/오타/부정·긍정 표현이 달라도 같은 취지면 한 그룹으로 묶으세요. (예: "안전모 착용" / "보호구 미착용 개선")
+4. 그룹 대표명칭(category)은 [기준 카테고리]의 이름을 우선 사용하고, 적합한 것이 없으면 핵심 키워드로 지으세요.
+5. representative_text 는 그룹을 대표하는 통합 문장으로 새로 작성하세요.
+6. 의미가 통하지 않는 무의미한 조각(예: 한두 글자 조사)은 버려도 됩니다.
+7. 반드시 아래 형식의 "순수 JSON 배열"로만 출력하세요. (Markdown 코드블록 없이 순수 JSON만)
 
 [출력 예시]
 [{"category":"보호구/PPE","representative_text":"보호구 착용 상태 점검 및 교육 강화","members":[{"text":"안전모 꼭 쓰기","name":"1팀 참여자1"},{"text":"보호구 착용 점검","name":"2팀 참여자3"}]}]
@@ -2985,8 +3068,11 @@ ${JSON.stringify(payload)}`;
           return `<div class="sim-wrap"><div class="sim-head">${badge}<span>유사하게 묶이는 개선안이 없습니다${singles ? ` · 단독 의견 ${singles}건` : ''}</span></div></div>`;
         }
         const title = scope === 'all' ? '전체 참여자 통합 유사 개선안' : '유사 개선안 묶음';
+        const note = result.engine === 'AI'
+          ? '🤖 입력을 절 단위로 1차 분해한 뒤, <b>AI(Gemini)가 의미 단위로 재분해·해석</b>해 같은 취지끼리 묶었습니다.'
+          : '✂️ 참여자가 콤마·줄바꿈·문장 단위로 여러 주제를 적어도, <b>절(문장) 단위로 분해</b>해 주제어가 같은 것끼리 묶었습니다. (키 입력 시 AI 의미 분석으로 전환)';
         let html = `<div class="sim-wrap"><div class="sim-head">${badge}<span>${title} · ${groups.length}개 그룹</span></div>
-          <div class="sim-note">✂️ 참여자가 콤마·줄바꿈·문장 단위로 여러 주제를 적어도, <b>절(문장) 단위로 분해</b>해 주제어가 같은 것끼리 묶었습니다.</div>`;
+          <div class="sim-note">${note}</div>`;
         groups.forEach(g => {
           const members = g.members.map(m =>
             `<li><span class="sim-who">${esc(m.who)}</span><span class="sim-mtext">${esc(m.text)}</span></li>`).join('');
@@ -3001,8 +3087,34 @@ ${JSON.stringify(payload)}`;
         return html;
       }
 
-      return { analyze, renderGroups, loadingHTML };
+      return { analyze, renderGroups, loadingHTML, setKey, hasKey };
     })();
+
+    // 유사도 AI(Gemini) 키 입력 핸들러 + 상태표시
+    window.saveGeminiKey = () => {
+      const v = ($('geminiKeyInput').value || '').trim();
+      if (/^[•]+$/.test(v)) { syncGeminiKeyStatus(); return; }  // 마스킹 값은 무시
+      SIM.setKey(v);
+      syncGeminiKeyStatus();
+      if (v && $('cmCourseSelect').value) loadCountermeasureData();  // 즉시 재분석
+    };
+    window.clearGeminiKey = () => {
+      $('geminiKeyInput').value = '';
+      SIM.setKey('');
+      syncGeminiKeyStatus();
+      if ($('cmCourseSelect').value) loadCountermeasureData();
+    };
+    function syncGeminiKeyStatus() {
+      const el = $('geminiKeyStatus');
+      if (!el) return;
+      if (SIM.hasKey()) {
+        el.className = 'sim-key-status on';
+        el.textContent = '✅ AI 의미 기반 유사도 분석(Gemini) 사용 중';
+      } else {
+        el.className = 'sim-key-status off';
+        el.textContent = '🔎 현재 로컬 유사도 엔진 사용 중 (키 입력 시 AI 분석으로 전환)';
+      }
+    }
 
     // ================================================================
     //  팀 성적 & 개선대책
@@ -3011,6 +3123,8 @@ ${JSON.stringify(payload)}`;
       refreshSelects();
       $('cmCourseSelect').value = '';
       $('cmContent').innerHTML = '<p class="empty">과정을 선택하면 팀 성적과 개선대책이 표시됩니다.</p>';
+      if (SIM.hasKey() && $('geminiKeyInput')) $('geminiKeyInput').value = '••••••••••';
+      syncGeminiKeyStatus();
       showScreen('countermeasureScreen');
     };
 

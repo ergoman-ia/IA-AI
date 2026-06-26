@@ -1064,40 +1064,6 @@
       font-weight: 600;
     }
 
-    /* ---------- 타이머 ---------- */
-    .timer-box {
-      background: var(--ink);
-      border-radius: var(--r);
-      padding: 16px;
-      text-align: center;
-      margin-bottom: 14px;
-      color: #fff;
-    }
-
-    .timer-cap {
-      font-size: .78rem;
-      color: #93a4bd;
-      margin-bottom: 6px;
-      letter-spacing: .04em;
-    }
-
-    .timer-display {
-      font-size: 2.3rem;
-      font-weight: 800;
-      letter-spacing: 3px;
-      font-variant-numeric: tabular-nums;
-      font-family: var(--mono);
-      color: var(--safe);
-    }
-
-    .timer-display.warning {
-      color: var(--hazard);
-    }
-
-    .timer-display.danger {
-      color: #f87171;
-    }
-
     /* ---------- 위험구역 ---------- */
     .danger-zone {
       display: none;
@@ -2399,6 +2365,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
       // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
       const stat = analyzeTeam(snap, factorNames, []);
+      stat.rows.forEach(r => r.hit = r.rank <= 3);   // 우리 팀 상위 3순위 → 녹색
       const pareto = stat.rows.filter(r => r.inPareto);
 
       p2.innerHTML = `
@@ -2407,60 +2374,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           팀원과 토론 후 <b>개선·예방대책</b>을 작성해 주세요.
         </div>
 
-        <div class="timer-box">
-          <div class="timer-cap">팀 토론 권장 시간</div>
-          <div class="timer-display" id="timerDisplay">05:00</div>
-          <div class="row" style="justify-content:center;margin-top:10px;">
-            <button class="btn btn-hazard btn-sm" id="timerStartBtn" onclick="startTimer()">타이머 시작</button>
-            <button class="btn btn-ghost btn-sm" onclick="resetTimer()">초기화</button>
-          </div>
-        </div>
-
         <div class="card tight" style="margin-bottom:14px;">
           <div class="eyebrow" style="margin-bottom:8px;">우리 팀 진단 — 핵심 위험 요인 (파레토 80%)</div>
-          ${stat.cnt > 0 ? paretoKeys(false) + paretoChart(stat.rows, { height: 220 }) + paretoLegend(pareto, { showHit: false })
+          ${stat.cnt > 0 ? paretoKeys(true, '우리 팀 상위 3순위') + paretoChart(stat.rows, { height: 220, showHit: true, mark: false }) + paretoLegend(pareto, { showHit: true, mark: false })
           : '<p class="empty">아직 응답 데이터가 없습니다.</p>'}
         </div>
 
         <label>개선 및 예방대책</label>
-        <textarea id="cmInput" rows="6" placeholder="토론 내용을 바탕으로 구체적인 예방대책을 입력하세요…"></textarea>
+        <textarea id="cmInput" rows="6" placeholder="구체적인 예방대책을 입력하세요…"></textarea>
         <div class="row">
           <button class="btn btn-green btn-full" onclick="submitCountermeasure()">대책 제출</button>
           <button class="btn btn-outline" style="min-width:90px;" onclick="showScreen('joinScreen')">취소</button>
         </div>`;
-      initTimer(5 * 60);
     }
-
-    // ── 토론 타이머 ─────────────────────────────────────
-    let timerInterval = null, timerDuration = 300, timerStartedAt = null, timerAlerted = false;
-    function initTimer(seconds) {
-      timerDuration = seconds; timerStartedAt = null; timerAlerted = false;
-      clearInterval(timerInterval); timerInterval = null;
-      renderTimer(seconds);
-      const b = $('timerStartBtn'); if (b) { b.innerText = '타이머 시작'; b.disabled = false; }
-    }
-    function renderTimer(remaining) {
-      const el = $('timerDisplay'); if (!el) return;
-      const r = Math.max(0, Math.round(remaining));
-      el.innerText = `${String(Math.floor(r / 60)).padStart(2, '0')}:${String(r % 60).padStart(2, '0')}`;
-      el.className = 'timer-display ' + (r > 180 ? '' : r > 60 ? 'warning' : 'danger');
-    }
-    window.startTimer = () => {
-      if (timerInterval) return;
-      timerStartedAt = Date.now(); timerAlerted = false;
-      const b = $('timerStartBtn'); if (b) b.disabled = true;
-      timerInterval = setInterval(() => {
-        if (!timerStartedAt) return;
-        const remaining = timerDuration - (Date.now() - timerStartedAt) / 1000;
-        if (remaining <= 0) {
-          clearInterval(timerInterval); timerInterval = null; renderTimer(0);
-          if (!timerAlerted) { timerAlerted = true; alert('토론 시간이 종료되었습니다. 예방대책을 입력해 주세요.'); }
-          return;
-        }
-        renderTimer(remaining);
-      }, 500);
-    };
-    window.resetTimer = () => initTimer(5 * 60);
 
     window.submitCountermeasure = async () => {
       const sessId = sessionStorage.getItem('sim_sess');
@@ -3212,14 +3138,16 @@ ${JSON.stringify(payload)}`;
     // ================================================================
     //  유사도 분석 결과 캐시 (Firestore) — 동일 입력이면 토큰 재사용 없이 즉시 표시
     // ================================================================
-    let lastSim = null;   // { sessId, items, sig }
+    let lastSim = null;          // { sessId }
+    let forceSimRefresh = false;  // 🔄 버튼: 캐시 무시하고 신규 데이터로 재분석
 
-    function simSignature(items) {
-      // 작성자+내용을 정렬해 결합 → FNV-1a 32bit 해시 (입력 변경 감지용)
+    function simSignature(items, maxTs) {
+      // 작성자+내용 정렬 결합 → FNV-1a 해시. 건수와 최신 제출시각까지 포함해
+      // 추가/수정/삭제가 있으면 반드시 서명이 달라지도록 한다.
       const norm = items.map(it => `${it.who}\u0001${(it.text || '').trim()}`).sort().join('\u0002');
       let h = 0x811c9dc5;
       for (let i = 0; i < norm.length; i++) { h ^= norm.charCodeAt(i); h = Math.imul(h, 0x01000193); }
-      return items.length + ':' + (h >>> 0).toString(16);
+      return `${items.length}:t${maxTs || 0}:${(h >>> 0).toString(16)}`;
     }
     async function readSimCache(sessId) {
       try { const c = await getDoc(doc(db, 'sessions', sessId, 'meta', 'sim_cache')); return c.exists() ? c.data() : null; }
@@ -3231,26 +3159,20 @@ ${JSON.stringify(payload)}`;
           { signature: sig, engine: result.engine, groupsJson: JSON.stringify(result.groups), count, ts: new Date() });
       } catch (e) { console.warn('유사도 캐시 저장 실패:', e); }
     }
-    function simCacheBar(state, sessId, ts) {
-      const when = ts && ts.seconds ? ` (${new Date(ts.seconds * 1000).toLocaleString('ko-KR')})` : '';
+    function simCacheBar(state, ts, count) {
+      const when = ts && ts.seconds ? ` · ${new Date(ts.seconds * 1000).toLocaleString('ko-KR')}` : '';
+      const cntTxt = (count != null) ? ` · 개선안 ${count}건 기준` : '';
       const msg = state === 'cached'
-        ? `💾 저장된 분석 결과를 표시합니다 · 입력 변경 없음 → AI 토큰 미사용${when}`
-        : `✅ 새로 분석해 저장했습니다${when}`;
+        ? `💾 저장된 분석 결과 (입력 변경 없음 → AI 토큰 미사용)${cntTxt}${when}`
+        : `✅ 새 입력을 반영해 다시 분석했습니다${cntTxt}${when}`;
       return `<div class="sim-cache-bar"><span>${msg}</span>
-        <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze('${esc(sessId)}')">🔄 강제 다시 분석</button></div>`;
+        <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze()">🔄 강제 다시 분석</button></div>`;
     }
-    window.forceSimReanalyze = async (sessId) => {
-      const slot = document.getElementById('simAll');
-      if (!slot) return;
-      if (!lastSim || lastSim.sessId !== sessId || !lastSim.items || lastSim.items.length < 2) {
-        return loadCountermeasureData();
-      }
-      slot.innerHTML = SIM.loadingHTML('AI로 다시 분석 중…');
-      try {
-        const result = await SIM.analyze(lastSim.items);
-        await saveSimCache(sessId, lastSim.sig, result, lastSim.items.length);
-        slot.innerHTML = simCacheBar('fresh', sessId, { seconds: Date.now() / 1000 }) + SIM.renderGroups(result, { scope: 'all' });
-      } catch (e) { slot.innerHTML = `<p class="muted">재분석 실패: ${esc(e.message)}</p>`; }
+    // 🔄: 최신 데이터를 다시 불러와(캐시 무시) 재분석
+    window.forceSimReanalyze = () => {
+      if (!$('cmCourseSelect').value) return;
+      forceSimRefresh = true;
+      loadCountermeasureData();
     };
 
     // ================================================================
@@ -3335,6 +3257,7 @@ ${JSON.stringify(payload)}`;
         <div class="eyebrow" style="margin-bottom:10px;">팀별 개선 및 예방대책</div>`;
 
       const allItems = [];          // 전체 참여자 개선안 (통합 유사도 분석용)
+      let allMaxTs = 0;             // 최신 개선안 제출 시각(초) — 변경 감지용
       for (let i = 1; i <= cfg.teamCount; i++) {
         const cmSnap = await getDocs(collection(db, 'sessions', sessId, 'teams', `team_${i}`, 'countermeasures'));
         const t = teams.find(x => x.idx === i);
@@ -3349,7 +3272,10 @@ ${JSON.stringify(payload)}`;
         } else {
           let num = 1;
           cmSnap.forEach(d => {
-            const txt = d.data().text;
+            const data = d.data();
+            const txt = data.text;
+            const ts = data.timestamp;
+            if (ts && ts.seconds) allMaxTs = Math.max(allMaxTs, ts.seconds);
             html += `<div class="cm-item"><span class="cm-tag">참여자${num}</span><span class="cm-text">${esc(txt)}</span></div>`;
             allItems.push({ text: txt, who: `${i}팀 참여자${num}` });
             num++;
@@ -3369,31 +3295,33 @@ ${JSON.stringify(payload)}`;
       (async () => {
         const allSlot = document.getElementById('simAll');
         if (!allSlot) return;
+        const forced = forceSimRefresh;     // 🔄 버튼으로 들어온 경우 캐시 무시
+        forceSimRefresh = false;
         if (allItems.length < 2) {
           allSlot.innerHTML = '<p class="muted" style="font-size:.88rem;">통합할 개선안이 충분하지 않습니다. (2건 이상 필요)</p>';
           lastSim = null;
           return;
         }
-        const sig = simSignature(allItems);
-        lastSim = { sessId, items: allItems, sig };
+        const sig = simSignature(allItems, allMaxTs);
+        lastSim = { sessId };
 
-        // 1) 캐시 확인 — 입력(작성자+내용)이 그대로면 토큰 사용 없이 즉시 표시
-        const cache = await readSimCache(sessId);
+        // 1) 캐시 확인 — 입력(작성자·내용·건수·최신시각)이 그대로면 토큰 사용 없이 즉시 표시
+        const cache = forced ? null : await readSimCache(sessId);
         if (cache && cache.signature === sig && cache.groupsJson) {
           try {
             const groups = JSON.parse(cache.groupsJson);
-            allSlot.innerHTML = simCacheBar('cached', sessId, cache.ts)
+            allSlot.innerHTML = simCacheBar('cached', cache.ts, allItems.length)
               + SIM.renderGroups({ engine: cache.engine || 'AI', groups }, { scope: 'all' });
             return;
           } catch (e) { /* 캐시 파손 시 아래에서 재분석 */ }
         }
 
-        // 2) 캐시 없음 또는 입력이 바뀜 → 다시 분석 후 저장
+        // 2) 캐시 없음 또는 입력이 바뀜(또는 강제) → 다시 분석 후 저장
         allSlot.innerHTML = SIM.loadingHTML('전체 참여자 개선안 통합 분석 중…');
         try {
           const result = await SIM.analyze(allItems);
           await saveSimCache(sessId, sig, result, allItems.length);
-          allSlot.innerHTML = simCacheBar('fresh', sessId, { seconds: Date.now() / 1000 })
+          allSlot.innerHTML = simCacheBar('fresh', { seconds: Date.now() / 1000 }, allItems.length)
             + SIM.renderGroups(result, { scope: 'all' });
         } catch (e) {
           allSlot.innerHTML = `<p class="muted">통합 분석 실패: ${esc(e.message)}</p>`;

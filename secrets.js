@@ -7,3 +7,5 @@ export const FIREBASE_CONFIG = {
   appId: "1:776240221625:web:006cf245ca81a00fefba68"
 };
 export const ADMIN_PASSWORD = "admin_0482";
+
+export const GEMINI_API_KEY = "AIzaSyBrKcsYcwjj39ocichU6-Dpf4T3MnjQe9A";

@@ -1122,10 +1122,21 @@
 
     .sim-wrap {
       margin-top: 12px;
-      border: 1px dashed var(--line-2);
+      border: 1px dashed #f0c14b;
       border-radius: var(--r-sm);
-      background: var(--surface-3);
+      background: #fffbeb;
       padding: 12px 13px;
+    }
+
+    .sim-note {
+      font-size: .78rem;
+      color: var(--hazard-ink);
+      background: #fff7d6;
+      border: 1px solid #f5e3a3;
+      border-radius: 6px;
+      padding: 6px 9px;
+      margin-bottom: 10px;
+      line-height: 1.5;
     }
 
     .sim-head {
@@ -2791,6 +2802,39 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           .filter(w => w.length >= 2 && !STOP.has(w));
       }
 
+      /* 한 명이 입력한 긴 개괄/연속 문장을 "절(節) 단위"로 분해.
+         · 콤마/줄바꿈/글머리표(·,-,①)/슬래시/세미콜론/문장부호/연결어(및·그리고)로 분리
+         · 단, 공백 단위로는 쪼개지 않음 → "안전모 착용" 같은 복합어 보존 */
+      function segment(text) {
+        let t = String(text || '').replace(/\r/g, '');
+        t = t.replace(/[\n·•▪◦‣*\u2022\u25AA\u25E6]+/g, '\n');   // 줄바꿈·글머리표
+        t = t.replace(/[,，、;；/]+/g, '\n');                      // 콤마·세미콜론·슬래시
+        t = t.replace(/\s+(?:및|그리고|또는|혹은)\s+/g, '\n');      // 연결어
+        t = t.replace(/([.!?。])\s+/g, '$1\n');                    // 문장부호 + 공백
+        return t.split('\n')
+          .map(s => s
+            .replace(/^\s*(?:\d+[.)]\s*|[-+]\s*|[①-⑳]\s*|[㉠-㉭]\s*|\(\d+\)\s*)/, '')  // 머리 번호/기호 제거
+            .replace(/[.,!?。\s]+$/, '')                                                  // 끝 문장부호 제거
+            .trim())
+          .filter(s => s.length >= 2);
+      }
+
+      /* 각 입력을 절 단위 하위 항목으로 펼침(출처 who 유지, 중복 제거) */
+      function expand(items) {
+        const out = [], seen = new Set();
+        (items || []).forEach(it => {
+          let segs = segment(it.text);
+          if (segs.length === 0) segs = [String(it.text || '').trim()].filter(s => s.length >= 2);
+          segs.forEach(s => {
+            const key = it.who + '\u0001' + s;
+            if (seen.has(key)) return;
+            seen.add(key);
+            out.push({ text: s, who: it.who });
+          });
+        });
+        return out;
+      }
+
       /* 세부 카테고리(Post 사전)와 대표 테마를 함께 추출 */
       function classify(text) {
         const lower = String(text || '').toLowerCase();
@@ -2915,12 +2959,13 @@ ${JSON.stringify(payload)}`;
       }
 
       async function analyze(items) {
+        const units = expand(items);          // 절 단위로 분해 후 분석
         const key = await getGeminiKey();
         if (key) {
-          try { return { engine: 'AI', groups: await geminiGroup(items, key) }; }
+          try { return { engine: 'AI', groups: await geminiGroup(units, key) }; }
           catch (e) { console.warn('Gemini 분석 실패 → 로컬 엔진으로 대체:', e); }
         }
-        return { engine: 'LOCAL', groups: localGroup(items) };
+        return { engine: 'LOCAL', groups: localGroup(units) };
       }
 
       function loadingHTML(msg) {
@@ -2940,7 +2985,8 @@ ${JSON.stringify(payload)}`;
           return `<div class="sim-wrap"><div class="sim-head">${badge}<span>유사하게 묶이는 개선안이 없습니다${singles ? ` · 단독 의견 ${singles}건` : ''}</span></div></div>`;
         }
         const title = scope === 'all' ? '전체 참여자 통합 유사 개선안' : '유사 개선안 묶음';
-        let html = `<div class="sim-wrap"><div class="sim-head">${badge}<span>${title} · ${groups.length}개 그룹</span></div>`;
+        let html = `<div class="sim-wrap"><div class="sim-head">${badge}<span>${title} · ${groups.length}개 그룹</span></div>
+          <div class="sim-note">✂️ 참여자가 콤마·줄바꿈·문장 단위로 여러 주제를 적어도, <b>절(문장) 단위로 분해</b>해 주제어가 같은 것끼리 묶었습니다.</div>`;
         groups.forEach(g => {
           const members = g.members.map(m =>
             `<li><span class="sim-who">${esc(m.who)}</span><span class="sim-mtext">${esc(m.text)}</span></li>`).join('');

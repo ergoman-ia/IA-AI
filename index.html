@@ -903,6 +903,29 @@
       font-weight: 900;
     }
 
+    .pc-xlabel {
+      fill: var(--ink);
+      font-size: 9px;
+      font-weight: 700;
+    }
+
+    .pc-barval {
+      font-size: 8.5px;
+      font-weight: 800;
+      font-family: var(--mono);
+    }
+
+    .pc-cumval {
+      fill: var(--pareto-cum);
+      font-size: 8.5px;
+      font-weight: 800;
+      font-family: var(--mono);
+      paint-order: stroke;
+      stroke: #fff;
+      stroke-width: 2.5px;
+      stroke-linejoin: round;
+    }
+
     .pareto-legend {
       margin-top: 12px;
       display: grid;
@@ -1162,6 +1185,22 @@
       padding: 2px 8px;
       border-radius: 999px;
       flex: none;
+    }
+
+    .sim-cache-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+      font-size: .8rem;
+      font-weight: 600;
+      color: var(--brand-deep);
+      background: #eef6ff;
+      border: 1px solid #cfe3ff;
+      border-radius: var(--r-sm);
+      padding: 8px 12px;
+      margin-bottom: 10px;
     }
 
     .sim-head {
@@ -1940,10 +1979,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     // ================================================================
     //  파레토 차트 (순수 SVG) — 정렬 막대 + 누적선 + 80% 기준선 + 정답 하이라이트
     // ================================================================
+    // 요인명을 X축용 짧은 라벨로 변환 ("지름길/생략 본능" → "지름길")
+    function shortFactor(name) {
+      let s = String(name || '').split(/[\/(（]/)[0].trim();
+      if (s.length > 7) s = s.slice(0, 7) + '…';
+      return s;
+    }
+
     function paretoChart(rows, opts = {}) {
       const n = rows.length;
-      const W = opts.width || 680, H = opts.height || 240;
-      const padL = 30, padR = 36, padT = 16, padB = 22;
+      const detailed = !!opts.detailed;     // 전체 차트: 항목명 라벨 + 막대 점유% + 누적%
+      const W = opts.width || 680, H = opts.height || (detailed ? 320 : 240);
+      const padL = detailed ? 34 : 30, padR = 36;
+      const padT = detailed ? 22 : 16, padB = detailed ? 88 : 22;
       const cw = W - padL - padR, ch = H - padT - padB;
       const bw = cw / n;
       const barW = bw * 0.62;
@@ -1957,16 +2005,36 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           + `<text x="${padL - 5}" y="${(yy + 3).toFixed(1)}" text-anchor="end" class="pc-axis">${t}</text>`;
       });
 
-      let bars = '', marks = '', cumPts = [];
+      let bars = '', marks = '', barVals = '', cumVals = '', cumPts = [];
       rows.forEach((r, i) => {
+        const cx = padL + bw * i + bw / 2;
         const bx = padL + bw * i + (bw - barW) / 2;
         const bh = (r.pct / 100) * ch;
         const by = yBot - bh;
+        const cumY = yOf(r.cumPct);
         const fill = r.inPareto ? (r.hit ? 'var(--pareto-hit)' : 'var(--pareto)') : 'var(--pareto-rest)';
         bars += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" rx="2" fill="${fill}"><title>${esc(r.name)} · ${Math.round(r.pct)}%</title></rect>`;
-        bars += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(yBot + 13).toFixed(1)}" text-anchor="middle" class="pc-rank ${r.inPareto ? 'on' : ''}">${r.rank}</text>`;
-        if (r.hit && opts.showHit && opts.mark !== false) marks += `<text x="${(bx + barW / 2).toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-hit">✓</text>`;
-        cumPts.push([bx + barW / 2, yOf(r.cumPct)]);
+
+        if (detailed) {
+          // X축: "순위. 항목명" (사선 라벨)
+          const ly = yBot + 12;
+          bars += `<text x="${cx.toFixed(1)}" y="${ly.toFixed(1)}" text-anchor="end" transform="rotate(-42 ${cx.toFixed(1)} ${ly.toFixed(1)})" class="pc-xlabel">${r.rank}. ${esc(shortFactor(r.name))}</text>`;
+          // 막대 위: 점유 비율 (누적 점과 겹치면 막대 안쪽에 흰 글씨)
+          const near = cumY >= by - 12;
+          if (near && bh >= 18) {
+            barVals += `<text x="${cx.toFixed(1)}" y="${(by + 12).toFixed(1)}" text-anchor="middle" class="pc-barval" fill="#fff">${Math.round(r.pct)}%</text>`;
+          } else {
+            barVals += `<text x="${cx.toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-barval" fill="#334155">${Math.round(r.pct)}%</text>`;
+          }
+          // 누적선 위: 누적 비율
+          let cvy = cumY - 7;
+          if (cvy < padT + 7) cvy = cumY + 14;
+          cumVals += `<text x="${cx.toFixed(1)}" y="${cvy.toFixed(1)}" text-anchor="middle" class="pc-cumval">${Math.round(r.cumPct)}%</text>`;
+        } else {
+          bars += `<text x="${cx.toFixed(1)}" y="${(yBot + 13).toFixed(1)}" text-anchor="middle" class="pc-rank ${r.inPareto ? 'on' : ''}">${r.rank}</text>`;
+        }
+        if (r.hit && opts.showHit && opts.mark !== false) marks += `<text x="${cx.toFixed(1)}" y="${(by - 4).toFixed(1)}" text-anchor="middle" class="pc-hit">✓</text>`;
+        cumPts.push([cx, cumY]);
       });
 
       const y80 = yOf(80);
@@ -1977,7 +2045,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const dots = cumPts.map(p => `<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="2.5" class="pc-dot"/>`).join('');
 
       return `<svg viewBox="0 0 ${W} ${H}" class="pareto-svg" preserveAspectRatio="xMidYMid meet" role="img" aria-label="파레토 차트">`
-        + `${grid}${bars}${line80}<path d="${path}" class="pc-cum"/>${dots}${marks}</svg>`;
+        + `${grid}${bars}${line80}<path d="${path}" class="pc-cum"/>${dots}${marks}${barVals}${cumVals}</svg>`;
     }
 
     // 차트 아래 순위 범례 (요인명 매핑)
@@ -2566,7 +2634,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div class="eyebrow" style="margin-bottom:10px;">전체 종합 — 모든 팀 합산 (${overallCnt}명)</div>
         <div class="card tight" style="margin-bottom:8px;">
           ${overallCnt > 0
-          ? paretoKeys(true, '전체 1·2·3순위') + paretoChart(overall.rows, { height: 240, showHit: true, mark: false }) + paretoLegend(overallPareto, { showHit: true, mark: false })
+          ? paretoKeys(true, '전체 1·2·3순위') + paretoChart(overall.rows, { height: 320, showHit: true, mark: false, detailed: true })
           : '<p class="empty">응답 데이터가 없습니다.</p>'}
         </div>
         <div class="notice notice-slate" style="margin-bottom:22px;">
@@ -2820,8 +2888,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
          공학적/관리적은 근본적으로 다른 대책이므로 절대 한 그룹으로 섞지 않는다. */
       const CONTROL_TYPES = {
         '제거/대체': ['제거','없애','폐지','대체','변경','공법변경','자동화로','무인화','로봇으로','기계화','원천','설계변경','위험원제거','공정변경'],
-        '공학적 대책': ['센서','감지기','인터록','연동장치','방호장치','방호덮개','방호울','안전장치','가드','덮개','커버','펜스','방책','난간','안전난간','발끝막이','방망','추락방지망','국소배기','집진','환기설비','배기장치','차단기','누전차단','누전차단기','접지','절연','방폭','비상정지','풀코드','광전자','양수조작','리미트','과부하방지','권과방지','해지장치','잠금','시건','loto','로토','잠금장치','표찰부착','전원차단','격리','방호선반','안전블록','경광등','경보장치','설비개선','구조개선','자동','물리적'],
-        '관리적 대책': ['교육','안전교육','특별교육','정기교육','tbm','툴박스','회의','절차','절차서','매뉴얼','지침','수칙','표준','작업표준','기준','작업허가','ptw','허가서','점검','순찰','감시','감독','관리감독','감시자','신호수','유도자','배치','인원충원','자격','면허','지정','지휘','확인','지적확인','체크리스트','점검표','평가','위험성평가','kras','표지','표지판','경고표지','안내','게시','공지','캠페인','홍보','의식','인식','마인드','습관','관심','문화','분위기','소통','보고','신고','작업시간','휴식','순환','교대','스트레칭'],
+        '공학적 대책': ['공학적','센서','감지기','인터록','연동장치','방호장치','방호덮개','방호울','안전장치','가드','덮개','커버','펜스','방책','난간','안전난간','발끝막이','방망','추락방지망','국소배기','집진','환기설비','배기장치','차단기','누전차단','누전차단기','접지','절연','방폭','비상정지','풀코드','광전자','양수조작','리미트','과부하방지','권과방지','해지장치','잠금','시건','loto','로토','잠금장치','표찰부착','전원차단','격리','방호선반','안전블록','경광등','경보장치','설비개선','구조개선','자동','물리적'],
+        '관리적 대책': ['관리적','행정적','교육','안전교육','특별교육','정기교육','tbm','툴박스','회의','절차','절차서','매뉴얼','지침','수칙','표준','작업표준','기준','작업허가','ptw','허가서','점검','순찰','감시','감독','관리감독','감시자','신호수','유도자','배치','인원충원','자격','면허','지정','지휘','확인','지적확인','체크리스트','점검표','평가','위험성평가','kras','표지','표지판','경고표지','안내','게시','공지','캠페인','홍보','의식','인식','마인드','습관','관심','문화','분위기','소통','보고','신고','작업시간','휴식','순환','교대','스트레칭'],
         '보호구(PPE)': ['안전모','보호구','ppe','하이바','안전화','안전대','안전벨트','보안경','보안면','귀마개','귀덮개','방진마스크','방독마스크','송기마스크','장갑','보호복','방열복','각반','착용','지급']
       };
       const CONTROL_ORDER = ['제거/대체', '공학적 대책', '관리적 대책', '보호구(PPE)', '기타(미분류)'];
@@ -2836,6 +2904,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           if (c > bestCnt) { bestCnt = c; best = ct; }
         }
         return best || '기타(미분류)';
+      }
+
+      // 관리적 대책 세부: 문화/교육/의식 vs 점검/감독/절차 를 구분
+      function adminSubOf(text) {
+        const t = String(text || '');
+        if (/(의식|문화|캠페인|소통|교육|마인드|습관|인식|분위기|존중|참여|관심|관리적|행정적)/.test(t)) return 'culture';
+        if (/(점검|순찰|감시|감독|관리감독|허가|ptw|절차|매뉴얼|수칙|표준|작업표준|체크리스트|점검표|지침|확인|배치|자격|면허|작업시간|휴식|교대)/i.test(t)) return 'oversight';
+        return 'other';
       }
 
       const STOP = new Set(['그리고','그러나','하지만','또한','대한','관련','경우','부분','대해','매우','항상','반드시',
@@ -2900,7 +2976,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           for (const kw of THEMES[th]) { if (kw && lower.indexOf(kw) !== -1) c++; }
           if (c > themeCnt) { themeCnt = c; theme = th; }
         }
-        return { cats, prim, theme, control: controlTypeOf(text) };
+        return { cats, prim, theme, control: controlTypeOf(text), adminSub: adminSubOf(text) };
       }
 
       function jaccard(a, b) {
@@ -2916,17 +2992,22 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         // 대책 유형(공학적/관리적/제거·대체/PPE)이 다르면 절대 묶지 않음
         if (A.control !== B.control) return 0;
         const tj = jaccard(A.tokens, B.tokens);
-        const sameTheme = A.theme && A.theme === B.theme;
-        if (tj === 0 && !sameTheme) return 0;          // 어휘 겹침도 동일 테마도 없으면 제외
+        const isAdmin = A.control === '관리적 대책';
+        // 관리적: 세부버킷(문화/교육/의식 ↔ 점검/감독/절차)만 신호로 사용(넓은 테마 무시)
+        // 그 외: 같은 대표 테마를 신호로 사용
+        const signal = isAdmin
+          ? (A.adminSub && A.adminSub === B.adminSub && A.adminSub !== 'other')
+          : (A.theme && A.theme === B.theme);
+        if (tj === 0 && !signal) return 0;
         let s = 0.60 * tj + 0.10 * jaccard(A.cats, B.cats);
-        if (sameTheme) s += 0.40;                       // 동의어(같은 테마)는 강한 신호
+        if (signal) s += 0.40;
         return s;
       }
 
       function prepare(items) {
         return items.map(it => {
-          const { cats, prim, theme, control } = classify(it.text);
-          return { text: it.text, who: it.who, tokens: new Set(tokenize(it.text)), cats, prim, theme, control };
+          const { cats, prim, theme, control, adminSub } = classify(it.text);
+          return { text: it.text, who: it.who, tokens: new Set(tokenize(it.text)), cats, prim, theme, control, adminSub };
         });
       }
 
@@ -2969,7 +3050,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           const ctn = {};
           mem.forEach(m => { ctn[m.control] = (ctn[m.control] || 0) + 1; });
           const control = Object.keys(ctn).sort((a, b) => ctn[b] - ctn[a])[0] || '기타(미분류)';
-          return { control_type: control, category: cat, representative_text: rep.text, members: mem.map(m => ({ text: m.text, who: m.who })) };
+          // 관리적 대책: 세부버킷(문화/교육/의식 vs 점검/감독/절차)에 맞는 통합 라벨
+          let label = cat;
+          if (control === '관리적 대책') {
+            const sub = {};
+            mem.forEach(m => { sub[m.adminSub] = (sub[m.adminSub] || 0) + 1; });
+            const dom = Object.keys(sub).sort((a, b) => sub[b] - sub[a])[0];
+            if (mem.length >= 2 && dom === 'culture') label = '안전문화·교육·의식 개선';
+            else if (mem.length >= 2 && dom === 'oversight') label = '점검·감독·절차 강화';
+          }
+          return { control_type: control, category: label, representative_text: rep.text, members: mem.map(m => ({ text: m.text, who: m.who })) };
         }).sort((a, b) => b.members.length - a.members.length);
       }
 
@@ -2996,16 +3086,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
 [가장 중요한 규칙]
 ★ 공학적 대책과 관리적 대책은 근본적으로 다른 대책입니다. 주제(예: 끼임 방지)가 같더라도 control_type 이 다르면 절대 같은 그룹으로 묶지 마세요. 예: "센서 설치"(공학적)와 "끼임 위험 안전교육"(관리적)은 주제가 같아도 반드시 다른 그룹입니다.
+★ 단, 같은 control_type 안에서는 취지가 통하면 넉넉하게 통합하세요. 그룹을 잘게 쪼개지 마세요.
+★ "관리적 대책", "공학적 대책" 같은 유형 명칭이 텍스트에 그대로 적혀 있으면 그것은 해당 유형을 가리키는 말이므로, 같은 유형의 의미 그룹에 합치세요. 절대 그 단어만으로 별도 그룹을 만들지 마세요. 예: "관리적 대책 강화"는 관리적 대책의 교육·의식·문화 그룹에 함께 넣으세요.
 
 [지시사항]
 1. 의미 기반 재분해: 한 항목 안에 서로 다른 주제/유형이 섞여 있으면(예: "센서 설치하고 교육 강화"), 의미 단위로 나눈 뒤 각각 알맞은 (control_type, 그룹)에 배치하세요. 작성자(name)는 그대로 유지하세요.
 2. 단어만 나열된 항목도 그 단어가 가리키는 대책으로 해석하세요. (예: "하이바"→보호구(PPE) / "LOTO"→공학적)
 3. 표현/사투리/현장은어/오타/부정·긍정 표현이 달라도 같은 취지·같은 유형이면 한 그룹으로 묶으세요.
-4. category(그룹 세부 명칭)는 [기준 카테고리] 이름을 우선 사용하고, 없으면 핵심 키워드로 지으세요.
-5. representative_text 는 그룹을 대표하는 통합 문장으로 새로 작성하세요.
-6. 무의미한 조각(한두 글자 조사 등)은 버려도 됩니다.
-7. 각 그룹 객체에 control_type 필드를 반드시 포함하세요.
-8. 반드시 아래 형식의 "순수 JSON 배열"로만 출력하세요. (Markdown 코드블록 없이 순수 JSON만)
+4. 관리적 대책 통합: 안전의식·안전교육·안전문화·캠페인·습관 개선·소통 활성화·관리감독 강화 등은 의미가 통하면 잘게 나누지 말고 "안전문화·교육·의식 개선" 같은 하나의 큰 그룹으로 넉넉히 묶으세요.
+5. category(그룹 세부 명칭)는 [기준 카테고리] 이름을 우선 사용하고, 없으면 핵심 키워드로 지으세요.
+6. representative_text 는 그룹을 대표하는 통합 문장으로 새로 작성하세요.
+7. 무의미한 조각(한두 글자 조사 등)은 버려도 됩니다.
+8. 각 그룹 객체에 control_type 필드를 반드시 포함하세요.
+9. 반드시 아래 형식의 "순수 JSON 배열"로만 출력하세요. (Markdown 코드블록 없이 순수 JSON만)
 
 [출력 예시]
 [
@@ -3115,6 +3208,50 @@ ${JSON.stringify(payload)}`;
 
       return { analyze, renderGroups, loadingHTML };
     })();
+
+    // ================================================================
+    //  유사도 분석 결과 캐시 (Firestore) — 동일 입력이면 토큰 재사용 없이 즉시 표시
+    // ================================================================
+    let lastSim = null;   // { sessId, items, sig }
+
+    function simSignature(items) {
+      // 작성자+내용을 정렬해 결합 → FNV-1a 32bit 해시 (입력 변경 감지용)
+      const norm = items.map(it => `${it.who}\u0001${(it.text || '').trim()}`).sort().join('\u0002');
+      let h = 0x811c9dc5;
+      for (let i = 0; i < norm.length; i++) { h ^= norm.charCodeAt(i); h = Math.imul(h, 0x01000193); }
+      return items.length + ':' + (h >>> 0).toString(16);
+    }
+    async function readSimCache(sessId) {
+      try { const c = await getDoc(doc(db, 'sessions', sessId, 'meta', 'sim_cache')); return c.exists() ? c.data() : null; }
+      catch (e) { return null; }
+    }
+    async function saveSimCache(sessId, sig, result, count) {
+      try {
+        await setDoc(doc(db, 'sessions', sessId, 'meta', 'sim_cache'),
+          { signature: sig, engine: result.engine, groupsJson: JSON.stringify(result.groups), count, ts: new Date() });
+      } catch (e) { console.warn('유사도 캐시 저장 실패:', e); }
+    }
+    function simCacheBar(state, sessId, ts) {
+      const when = ts && ts.seconds ? ` (${new Date(ts.seconds * 1000).toLocaleString('ko-KR')})` : '';
+      const msg = state === 'cached'
+        ? `💾 저장된 분석 결과를 표시합니다 · 입력 변경 없음 → AI 토큰 미사용${when}`
+        : `✅ 새로 분석해 저장했습니다${when}`;
+      return `<div class="sim-cache-bar"><span>${msg}</span>
+        <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze('${esc(sessId)}')">🔄 강제 다시 분석</button></div>`;
+    }
+    window.forceSimReanalyze = async (sessId) => {
+      const slot = document.getElementById('simAll');
+      if (!slot) return;
+      if (!lastSim || lastSim.sessId !== sessId || !lastSim.items || lastSim.items.length < 2) {
+        return loadCountermeasureData();
+      }
+      slot.innerHTML = SIM.loadingHTML('AI로 다시 분석 중…');
+      try {
+        const result = await SIM.analyze(lastSim.items);
+        await saveSimCache(sessId, lastSim.sig, result, lastSim.items.length);
+        slot.innerHTML = simCacheBar('fresh', sessId, { seconds: Date.now() / 1000 }) + SIM.renderGroups(result, { scope: 'all' });
+      } catch (e) { slot.innerHTML = `<p class="muted">재분석 실패: ${esc(e.message)}</p>`; }
+    };
 
     // ================================================================
     //  팀 성적 & 개선대책
@@ -3228,18 +3365,36 @@ ${JSON.stringify(payload)}`;
 
       div.innerHTML = html;
 
-      // ── 유사도 AI 분석: 전체 통합 1회만 ─────────────────────────
+      // ── 유사도 AI 분석: 전체 통합 1회만 (입력 변경 없으면 캐시 재사용) ──
       (async () => {
         const allSlot = document.getElementById('simAll');
         if (!allSlot) return;
         if (allItems.length < 2) {
           allSlot.innerHTML = '<p class="muted" style="font-size:.88rem;">통합할 개선안이 충분하지 않습니다. (2건 이상 필요)</p>';
+          lastSim = null;
           return;
         }
+        const sig = simSignature(allItems);
+        lastSim = { sessId, items: allItems, sig };
+
+        // 1) 캐시 확인 — 입력(작성자+내용)이 그대로면 토큰 사용 없이 즉시 표시
+        const cache = await readSimCache(sessId);
+        if (cache && cache.signature === sig && cache.groupsJson) {
+          try {
+            const groups = JSON.parse(cache.groupsJson);
+            allSlot.innerHTML = simCacheBar('cached', sessId, cache.ts)
+              + SIM.renderGroups({ engine: cache.engine || 'AI', groups }, { scope: 'all' });
+            return;
+          } catch (e) { /* 캐시 파손 시 아래에서 재분석 */ }
+        }
+
+        // 2) 캐시 없음 또는 입력이 바뀜 → 다시 분석 후 저장
         allSlot.innerHTML = SIM.loadingHTML('전체 참여자 개선안 통합 분석 중…');
         try {
           const result = await SIM.analyze(allItems);
-          allSlot.innerHTML = SIM.renderGroups(result, { scope: 'all' });
+          await saveSimCache(sessId, sig, result, allItems.length);
+          allSlot.innerHTML = simCacheBar('fresh', sessId, { seconds: Date.now() / 1000 })
+            + SIM.renderGroups(result, { scope: 'all' });
         } catch (e) {
           allSlot.innerHTML = `<p class="muted">통합 분석 실패: ${esc(e.message)}</p>`;
         }

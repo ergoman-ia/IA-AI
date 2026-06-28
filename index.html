@@ -4,6 +4,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- 첫 페인트 이전에 폰 단말을 판별해 클래스를 미리 부여 → 강사 모드 버튼 등이 잠깐 보였다 사라지는 깜빡임(FOUC) 방지 -->
+  <script>
+    (function () {
+      var ua = navigator.userAgent || navigator.vendor || '';
+      if (/Android.*Mobile|iPhone|iPod|webOS|BlackBerry|IEMobile|Opera Mini|Windows Phone/i.test(ua)) {
+        document.documentElement.classList.add('is-phone');
+      }
+    })();
+  </script>
   <title>휴먼에러 헌팅 — 함정 제거 실습</title>
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
   <link rel="stylesheet"
@@ -172,8 +181,8 @@
       border-color: var(--hazard);
     }
 
-    /* 스마트폰에서는 강사 모드 진입을 노출하지 않음 */
-    body.is-phone .admin-link { display: none !important; }
+    /* 스마트폰에서는 강사 모드 진입을 노출하지 않음 (html/body 어느 쪽에 클래스가 붙어도 적용) */
+    .is-phone .admin-link { display: none !important; }
 
     /* ---------- 카드 / 패널 ---------- */
     .card {

@@ -1110,6 +1110,13 @@
       margin-bottom: 10px;
     }
 
+    /* 캐시 안내 줄에서 '어떤 모델을 썼는지' 부분 */
+    .sim-cache-model {
+      font-weight: 700;
+      color: var(--purple);
+      white-space: nowrap;
+    }
+
     .sim-head {
       display: flex;
       align-items: center;
@@ -3010,7 +3017,7 @@ ${JSON.stringify(Object.keys(CATEGORIES))}
 
 [개선·예방대책 목록 (분석 대상)]
 ${JSON.stringify(payload)}`;
-        let parsed = null, lastErr = null;
+        let parsed = null, lastErr = null, usedModel = null;
         for (const modelName of MODEL_CHAIN) {
           try {
             const res = await ai.models.generateContent({
@@ -3023,6 +3030,7 @@ ${JSON.stringify(payload)}`;
               }
             });
             parsed = JSON.parse(res.text);
+            usedModel = modelName;                      // 실제로 응답한 모델을 기록
             break;
           } catch (e) {
             lastErr = e;
@@ -3055,17 +3063,23 @@ ${JSON.stringify(payload)}`;
             });
           });
         });
-        return reconcile(out, items).sort((a, b) => b.members.length - a.members.length);
+        return {
+          model: usedModel,
+          groups: reconcile(out, items).sort((a, b) => b.members.length - a.members.length)
+        };
       }
 
       async function analyze(items) {
         const units = expand(items);          // 절 단위로 분해 후 분석
         const key = await getGeminiKey();
         if (key) {
-          try { return { engine: 'AI', groups: await geminiGroup(units, key) }; }
+          try {
+            const r = await geminiGroup(units, key);
+            return { engine: 'AI', model: r.model, groups: r.groups };
+          }
           catch (e) { console.warn('Gemini 분석 실패 → 로컬 엔진으로 대체:', e); }
         }
-        return { engine: 'LOCAL', groups: localGroup(units) };
+        return { engine: 'LOCAL', model: 'local', groups: localGroup(units) };
       }
 
       function loadingHTML(msg) {
@@ -3147,15 +3161,29 @@ ${JSON.stringify(payload)}`;
     async function saveSimCache(sessId, sig, result, count) {
       try {
         await setDoc(doc(db, 'sessions', sessId, 'meta', 'sim_cache'),
-          { signature: sig, engine: result.engine, groupsJson: JSON.stringify(result.groups), count, ts: new Date() });
+          {
+            signature: sig, engine: result.engine, model: result.model || null,
+            groupsJson: JSON.stringify(result.groups), count, ts: new Date()
+          });
       } catch (e) { console.warn('유사도 캐시 저장 실패:', e); }
     }
-    function simCacheBar(state, ts, count) {
-      const when = ts && ts.seconds ? ` · ${new Date(ts.seconds * 1000).toLocaleString('ko-KR')}` : '';
-      const cntTxt = (count != null) ? ` · 개선안 ${count}건 기준` : '';
+
+    // 'gemini-3.1-flash-lite' → 'Gemini 3.1-flash-lite'
+    function modelLabel(engine, model) {
+      if (engine === 'LOCAL' || model === 'local') return '로컬 유사도 엔진 사용';
+      if (!model) return 'Gemini 사용';                       // 모델명 없이 저장된 옛 캐시
+      const m = String(model).replace(/^gemini-/i, '');
+      return `Gemini ${m} 사용`;
+    }
+
+    function simCacheBar(state, ts, count, engine, model) {
+      const when = ts && ts.seconds
+        ? ` · ${new Date(ts.seconds * 1000).toLocaleString('ko-KR')} 기준` : '';
+      const cntTxt = (count != null) ? ` · 개선안 ${count}건` : '';
+      const tail = ` <span class="sim-cache-model">(${esc(modelLabel(engine, model))})</span>`;
       const msg = state === 'cached'
-        ? `💾 저장된 분석 결과 (입력 변경 없음 → AI 토큰 미사용)${cntTxt}${when}`
-        : `✅ 새 입력을 반영해 다시 분석했습니다${cntTxt}${when}`;
+        ? `💾 저장된 분석 결과 — 개선대책 변동 없음 → AI 호출 안 함${cntTxt}${when}${tail}`
+        : `✅ 새 개선대책을 반영해 다시 분석했습니다${cntTxt}${when}${tail}`;
       return `<div class="sim-cache-bar"><span>${msg}</span>
         <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze()">🔄 강제 다시 분석</button></div>`;
     }
@@ -3298,18 +3326,25 @@ ${JSON.stringify(payload)}`;
         }
         const sig = simSignature(allItems, allMaxTs);
 
-        // 1) 캐시 확인 — 입력(작성자·내용·건수·최신시각)이 그대로면 토큰 사용 없이 즉시 표시
-        // 로컬 엔진 결과는 재사용하지 않는다.
-        //   한도 초과로 대체된 결과가 캐시에 굳으면, 한도가 풀린 뒤에도 AI 분석으로 돌아오지 못한다.
-        //   (로컬 재계산은 브라우저에서 즉시 끝나므로 비용이 없다)
+        // 1) 캐시 확인 — 서명(작성자·내용·건수·최신시각)이 같으면 무조건 저장된 결과를 쓴다.
+        //    엔진이 AI든 로컬이든 재사용한다. 재분석은 다음 두 경우에만 일어난다.
+        //      · 개선대책이 추가·수정·삭제되어 서명이 달라진 경우
+        //      · 강사가 🔄 강제 다시 분석을 누른 경우
+        //    (시간 경과·화면 재진입·과정 재선택으로는 절대 AI를 호출하지 않는다)
         const cache = forced ? null : await readSimCache(sessId);
-        if (cache && cache.signature === sig && cache.groupsJson && cache.engine !== 'LOCAL') {
+
+        if (cache && cache.signature === sig && cache.groupsJson) {
           try {
             const groups = JSON.parse(cache.groupsJson);
-            allSlot.innerHTML = simCacheBar('cached', cache.ts, allItems.length)
+            allSlot.innerHTML = simCacheBar('cached', cache.ts, allItems.length, cache.engine, cache.model)
               + SIM.renderGroups({ engine: cache.engine || 'AI', groups });
-            return;
-          } catch (e) { /* 캐시 파손 시 아래에서 재분석 */ }
+            return;                                  // ← AI 호출 없음
+          } catch (e) { console.warn('캐시 파손 → 재분석:', e); }
+        } else if (!forced) {
+          // 왜 캐시를 못 썼는지 남긴다. 매번 재분석된다면 여기 로그로 원인을 알 수 있다.
+          if (!cache) console.info('[유사도] 저장된 결과 없음(또는 읽기 실패) → 최초 분석');
+          else if (cache.signature !== sig)
+            console.info('[유사도] 개선대책이 바뀌어 재분석', { 저장된서명: cache.signature, 현재서명: sig });
         }
 
         // 2) 캐시 없음 또는 입력이 바뀜(또는 강제) → 다시 분석 후 저장
@@ -3317,7 +3352,7 @@ ${JSON.stringify(payload)}`;
         try {
           const result = await SIM.analyze(allItems);
           await saveSimCache(sessId, sig, result, allItems.length);
-          allSlot.innerHTML = simCacheBar('fresh', { seconds: Date.now() / 1000 }, allItems.length)
+          allSlot.innerHTML = simCacheBar('fresh', { seconds: Date.now() / 1000 }, allItems.length, result.engine, result.model)
             + SIM.renderGroups(result);
         } catch (e) {
           allSlot.innerHTML = `<p class="muted">통합 분석 실패: ${esc(e.message)}</p>`;

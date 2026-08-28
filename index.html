@@ -3125,7 +3125,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
          · 2순위 Flash      : 1순위가 한도 초과(429)나 종료(404)면 승격
          · 둘 다 실패하면 analyze() 가 로컬 엔진으로 자동 대체
          미리보기(-preview) ID는 한도가 더 빡빡하고 예고 없이 사라지므로 쓰지 않는다. */
-      const MODEL_CHAIN = ['gemini-3.1-flash-lite', 'gemini-3.6-flash'];
+      const MODEL_CHAIN = ['gemini-3.5-flash-lite', 'gemini-3.1-flash-lite'];
 
       /* 모델이 항목을 빠뜨려도 참여자 의견이 사라지지 않게 원본과 대조 */
       function reconcile(groups, original) {
@@ -3404,7 +3404,7 @@ ${JSON.stringify(payload)}`;
       } catch (e) { console.warn('유사도 캐시 저장 실패:', e); }
     }
 
-    // 'gemini-3.1-flash-lite' → 'Gemini 3.1-flash-lite'
+    // 'gemini-3.5-flash-lite' → 'Gemini 3.1-flash-lite'
     function modelLabel(engine, model) {
       if (engine === 'LOCAL' || model === 'local') return '로컬 유사도 엔진 사용';
       if (!model) return 'Gemini 사용';                       // 모델명 없이 저장된 옛 캐시

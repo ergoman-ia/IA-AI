@@ -675,14 +675,16 @@
     }
 
     .q-desc {
-      font-size: .87rem;
-      color: #334155;
-      background: var(--surface-2);
-      padding: 9px 12px;
-      border-left: 3px solid var(--line-2);
+      font-size: 13px;
+      font-weight: 600;
+      color: #1e293b;
+      background: #fff8e6;
+      padding: 10px 12px;
+      border-left: 4px solid var(--hazard);
       border-radius: 0 6px 6px 0;
       margin-bottom: 12px;
-      line-height: 1.5;
+      line-height: 1.6;
+      word-break: keep-all;
     }
 
     .likert {
@@ -1281,6 +1283,10 @@
     }
 
     @media (max-width: 560px) {
+      .q-title {
+        font-size: 1.05rem;
+      }
+
       .brand-text p {
         display: none;
       }

@@ -2623,7 +2623,12 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (document.activeElement !== ta) return;
       const anchor = (ta.previousElementSibling && ta.previousElementSibling.classList.contains('cm-rule'))
         ? ta.previousElementSibling : ta;
-      anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      // 화면 위에 고정된 제목줄(.app-header) 높이만큼 덜 올려, 제목줄 밑에 가려지지 않게 한다.
+      const header = document.querySelector('.app-header');
+      const headerH = header ? header.getBoundingClientRect().height : 0;
+      const gap = 10;
+      const delta = anchor.getBoundingClientRect().top - headerH - gap;
+      if (Math.abs(delta) > 4) window.scrollBy({ top: delta, behavior: 'smooth' });
     }
     // 키보드가 열리고 닫히며 보이는 화면 높이가 바뀔 때도 다시 맞춤(지원하는 브라우저에서만)
     if (window.visualViewport) {

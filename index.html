@@ -1183,13 +1183,6 @@
       border-radius: 999px;
     }
 
-    .sim-rep {
-      font-weight: 700;
-      color: var(--brand-deep);
-      font-size: .9rem;
-      margin-bottom: 6px;
-    }
-
     .sim-parent {
       display: block;
       margin-top: 2px;
@@ -3713,7 +3706,6 @@ ${JSON.stringify(payload)}`;
                 <span class="sim-cat">${esc(g.category)}</span>
                 <span class="sim-count">${g.members.length}건</span>
               </div>
-              <div class="sim-rep">📌 ${esc(g.representative_text)}</div>
               <ul class="sim-members">${members}</ul>
             </div>`;
           });
@@ -3732,7 +3724,7 @@ ${JSON.stringify(payload)}`;
     let forceSimRefresh = false;  // 🔄 버튼: 캐시 무시하고 신규 데이터로 재분석
 
     // 분류 규칙(나누기·판정·코드북·프롬프트)을 바꿀 때마다 이 값을 올린다.
-    //   저장된 결과의 규칙 버전이 다르면 강제 다시 분석 없이 자동으로 다시 분석한다.
+    //   저장된 결과의 규칙 버전이 다르면 결과는 그대로 보여 주고 "규칙이 바뀌었다"는 안내만 띄운다.
     const SIM_RULES_VERSION = '2026-11-10.2';
     function simSignature(items, maxTs) {
       // 작성자+내용 정렬 결합 → FNV-1a 해시. 건수와 최신 제출시각까지 포함해
@@ -3771,8 +3763,8 @@ ${JSON.stringify(payload)}`;
       const tail = ` <span class="sim-cache-model">(${esc(modelLabel(engine, model))})</span>`;
       const msg = state === 'cached'
         ? `💾 저장된 분석 결과 — 개선대책 변동 없음 → AI 호출 안 함${cntTxt}${when}${tail}`
-        : state === 'rules'
-          ? `🔧 분류 규칙이 바뀌어 자동으로 다시 분석했습니다${cntTxt}${when}${tail}`
+        : state === 'cached-old'
+          ? `💾 저장된 분석 결과${cntTxt}${when}${tail}<br><b style="color:#b45309;">🔧 그 뒤 분류 규칙이 바뀌었습니다. 새 기준을 적용하려면 🔄 강제 다시 분석을 누르세요.</b>`
           : `✅ 새 개선대책을 반영해 다시 분석했습니다${cntTxt}${when}${tail}`;
       return `<div class="sim-cache-bar"><span>${msg}</span>
         <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze()">🔄 강제 다시 분석</button></div>`;
@@ -3917,18 +3909,20 @@ ${JSON.stringify(payload)}`;
         const sig = simSignature(allItems, allMaxTs);
 
         // 1) 캐시 확인 — 서명(작성자·내용·건수·최신시각)이 같으면 무조건 저장된 결과를 쓴다.
-        //    엔진이 AI든 로컬이든 재사용한다. 재분석은 다음 세 경우에만 일어난다.
+        //    엔진이 AI든 로컬이든 재사용한다. 재분석은 다음 두 경우에만 일어난다.
         //      · 개선대책이 추가·수정·삭제되어 서명이 달라진 경우
-        //      · 앱의 분류 규칙 버전(SIM_RULES_VERSION)이 저장된 결과와 다른 경우
+        //    (앱의 분류 규칙 버전이 달라도 자동 재분석은 하지 않고 안내만 표시한다)
         //      · 강사가 🔄 강제 다시 분석을 누른 경우
         //    (시간 경과·화면 재진입·과정 재선택으로는 절대 AI를 호출하지 않는다)
         const cache = forced ? null : await readSimCache(sessId);
 
+        // 분류 규칙 버전이 달라도 자동으로 다시 분석하지 않는다(지난 과정까지 매번 AI를 부르지 않도록).
+        //   저장된 결과를 그대로 보여 주고 "규칙이 바뀌었다"고만 안내 → 필요하면 강사가 🔄 강제 다시 분석
         const rulesChanged = !!cache && cache.signature === sig && cache.rulesVersion !== SIM_RULES_VERSION;
-        if (cache && cache.signature === sig && !rulesChanged && cache.groupsJson) {
+        if (cache && cache.signature === sig && cache.groupsJson) {
           try {
             const groups = JSON.parse(cache.groupsJson);
-            allSlot.innerHTML = simCacheBar('cached', cache.ts, allItems.length, cache.engine, cache.model)
+            allSlot.innerHTML = simCacheBar(rulesChanged ? 'cached-old' : 'cached', cache.ts, allItems.length, cache.engine, cache.model)
               + SIM.renderGroups({ engine: cache.engine || 'AI', groups });
             return;                                  // ← AI 호출 없음
           } catch (e) { console.warn('캐시 파손 → 재분석:', e); }
@@ -3937,8 +3931,6 @@ ${JSON.stringify(payload)}`;
           if (!cache) console.info('[유사도] 저장된 결과 없음(또는 읽기 실패) → 최초 분석');
           else if (cache.signature !== sig)
             console.info('[유사도] 개선대책이 바뀌어 재분석', { 저장된서명: cache.signature, 현재서명: sig });
-          else if (rulesChanged)
-            console.info('[유사도] 분류 규칙이 바뀌어 재분석', { 저장된버전: cache.rulesVersion || '(없음)', 현재버전: SIM_RULES_VERSION });
         }
 
         // 2) 캐시 없음 또는 입력이 바뀜(또는 강제) → 다시 분석 후 저장
@@ -3946,7 +3938,7 @@ ${JSON.stringify(payload)}`;
         try {
           const result = await SIM.analyze(allItems);
           await saveSimCache(sessId, sig, result, allItems.length);
-          allSlot.innerHTML = simCacheBar(rulesChanged ? 'rules' : 'fresh', { seconds: Date.now() / 1000 }, allItems.length, result.engine, result.model)
+          allSlot.innerHTML = simCacheBar('fresh', { seconds: Date.now() / 1000 }, allItems.length, result.engine, result.model)
             + SIM.renderGroups(result);
         } catch (e) {
           allSlot.innerHTML = `<p class="muted">통합 분석 실패: ${esc(e.message)}</p>`;

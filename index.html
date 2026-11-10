@@ -2503,11 +2503,13 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         </div>
 
         <label>개선 및 예방대책</label>
-        <textarea id="cmInput" class="auto-list" rows="6" placeholder="구체적인 예방대책을 입력하세요…&#10;예) 1. 센서 개선&#10;      - 이물질이 쌓이지 않도록 송풍 설비 설치&#10;    2. 규정에 대한 교육"></textarea>
+        <div class="cm-rule" style="margin:2px 0 6px;font-size:14px;font-weight:800;color:#dc2626;">
+          ✍️ 한 줄에 대책 하나씩만 쓰세요.
+        </div>
+        <textarea id="cmInput" class="auto-list" rows="6" placeholder="구체적인 예방대책을 입력하세요…&#10;예)&#10;- 센서에 이물질이 쌓이지 않도록 송풍 설비 설치&#10;- LOTO 체결 절차 교육&#10;- 인터록 장치 훼손 금지 규정 교육&#10;- 관리감독자 작업 시작 전 점검"></textarea>
         <div class="hint" style="font-size:12px;color:#64748b;margin:4px 0 10px;">
-          💡 "1." "1)" "-" 로 시작한 줄에서 Enter를 누르면 다음 번호·글머리표가 자동으로 붙습니다.
-          하위 항목은 번호를 지우고 "-"로 시작하세요(PC는 빈 번호 항목에서 Tab).
-          빈 하위 항목에서 Enter → 다음 번호, 빈 번호 항목에서 Enter → 목록 끝.
+          💡 <b style="color:#dc2626;">"-"로 시작해 한 줄에 대책 하나씩</b>, 무엇을 어떻게 할지까지 적어 주세요.
+          Enter를 누르면 다음 줄에 "-"가 자동으로 붙고, 빈 "-" 줄에서 Enter를 누르면 목록이 끝납니다.
         </div>
         <div class="row">
           <button class="btn btn-green btn-full" id="cmSubmitBtn" onclick="submitCountermeasure()">대책 제출</button>
@@ -2521,7 +2523,6 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     //   · "1. 내용" / "1) 내용" / "(1) 내용" / "① 내용" + Enter → "2. " / "2) " / "(2) " / "②"
     //   · 들여쓰기도 그대로 이어감
     //   · 내용 없이 기호만 있는 줄에서 Enter → 기호를 지우고 목록 종료(워드와 같은 동작)
-    //   · PC: 빈 번호 항목에서 Tab → 들여쓴 하위 "- ", 빈 하위 항목에서 Shift+Tab → 다음 번호
     //   한글 입력(IME) 조합 중 Enter 와 충돌하지 않도록 keydown 이 아니라
     //   줄바꿈이 실제로 들어간 뒤의 input 이벤트에서 처리한다.
     // ================================================================
@@ -2538,19 +2539,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       else if (bullet) { next = bullet; }
       return { indent, next, kind, gap: gap.includes('\t') ? ' ' : gap, content };
     }
-    function lineBounds(v, pos) {
-      const start = v.lastIndexOf('\n', pos - 1) + 1;
-      let end = v.indexOf('\n', pos); if (end === -1) end = v.length;
-      return { start, end };
-    }
     // 커서 위쪽에서 가장 가까운 "들여쓰지 않은 번호 줄"을 찾아 그다음 번호를 돌려줌
-    function nextTopNumber(v, before) {
+    // 커서 위쪽에서 지금 줄보다 덜 들여쓴 가장 가까운 목록 줄을 찾아, 그 단계의 다음 기호를 돌려줌
+    //   ("- 상위" 아래에서 나오면 "- ", "1. 상위" 아래에서 나오면 "2. ")
+    function outdentMarker(v, before, curIndentLen) {
       const lines = v.slice(0, before).split('\n').reverse();
       for (const ln of lines) {
         const p = parseListLine(ln);
-        if (p && p.kind === 'num' && !p.indent && p.next) return p.next;
+        if (p && p.indent.length < curIndentLen && p.next) return p.indent + p.next + ' ';
       }
-      return '1.';
+      return '- ';
     }
     document.addEventListener('input', e => {
       const ta = e.target;
@@ -2566,8 +2564,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (!info) return;
       if (!info.content.trim()) {
         if (info.kind === 'bullet' && info.indent) {
-          // 빈 하위 항목(들여쓴 "-")에서 Enter → 상위 단계로 올라가 다음 번호
-          ta.setRangeText(nextTopNumber(v, prevStart) + ' ', prevStart, p, 'end');
+          // 빈 하위 항목(들여쓴 "-")에서 Enter → 상위 단계로 올라감
+          ta.setRangeText(outdentMarker(v, prevStart, info.indent.length), prevStart, p, 'end');
         } else {
           // 빈 항목에서 Enter → 기호와 방금 넣은 줄바꿈을 지우고 목록 종료
           ta.setRangeText('', prevStart, p, 'end');
@@ -2579,6 +2577,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     });
     // 입력 칸 높이를 내용에 맞춰 자동 조절(최소: 처음 높이, 최대: 화면 높이의 60% — 넘으면 스크롤)
     //   위의 자동 번호 처리 뒤에 실행되도록 그다음에 등록한다.
+    // 칸을 누르면 비어 있을 때 첫 줄에 "- "를 자동으로 넣음(누르기 전에는 흐린 예시가 보이도록 미리 넣지 않음).
+    // 아무것도 쓰지 않고 칸을 벗어나면 "- "를 다시 지워 예시가 보이게 함.
+    document.addEventListener('focusin', e => {
+      const ta = e.target;
+      if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
+      if (ta.value === '') { ta.value = '- '; ta.setSelectionRange(2, 2); }
+    });
+    document.addEventListener('focusout', e => {
+      const ta = e.target;
+      if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
+      if (/^[ \t]*-[ \t]*$/.test(ta.value)) ta.value = '';
+    });
     function autoGrow(ta) {
       if (!ta.dataset.minH) ta.dataset.minH = String(ta.offsetHeight || 0);
       const maxH = Math.round(window.innerHeight * 0.6);
@@ -2591,22 +2601,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const ta = e.target;
       if (ta instanceof HTMLTextAreaElement && ta.classList.contains('auto-list')) autoGrow(ta);
     });
-    document.addEventListener('keydown', e => {
-      const ta = e.target;
-      if (e.key !== 'Tab' || e.isComposing) return;
-      if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
-      const v = ta.value, p = ta.selectionStart;
-      const { start, end } = lineBounds(v, p);
-      const info = parseListLine(v.slice(start, end));
-      if (!info || info.content.trim()) return;                 // 빈 기호 줄일 때만 동작(그 외 Tab은 원래대로)
-      let repl = null;
-      if (!e.shiftKey && info.kind === 'num') repl = info.indent + '  - ';
-      else if (e.shiftKey && info.kind === 'bullet' && info.indent) repl = nextTopNumber(v, start) + ' ';
-      if (repl === null) return;
-      e.preventDefault();
-      ta.setRangeText(repl, start, end, 'end');
-      autoGrow(ta);
-    });
+    // (Tab 들여쓰기 기능은 '한 줄에 대책 하나' 입력 방식으로 바꾸면서 제거함.
+    //  들여쓰거나 붙여 넣은 상위·하위 글은 분석 단계에서 그대로 맥락을 살려 처리한다.)
 
     window.submitCountermeasure = async () => {
       if (busy.cm) return;                           // ← 연타 무시
@@ -2616,7 +2612,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       try {
         const sessId = sessionStorage.getItem('sim_sess');
         const teamId = sessionStorage.getItem('sim_team');
-        const cmText = $('cmInput').value.trim();
+        // 내용 없이 "-"만 있는 줄(자동으로 붙은 기호)은 지우고 제출
+        const cmText = $('cmInput').value.split('\n').filter(l => !/^[ \t　]*[-*•·▪]?[ \t]*$/.test(l)).join('\n').trim();
         if (!cmText) { alert('개선 및 예방대책을 입력해 주세요.'); return; }
 
         // 개선대책은 여러 건 제출할 수 있지만, 같은 내용을 연달아 두 번 보내는 것은 막는다.
@@ -3195,21 +3192,26 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         // 한 줄에 번호를 이어 쓴 경우(" 2. ", " 3) ", " ②", " (4)") 줄을 나눔 — "1.5m" 같은 소수점은 제외
         t = t.replace(/[ \t]+(?=(?:\d+[.)](?!\d)|[①-⑳]|\(\d+\))\s)/g, '\n');
         const out = [];
-        let parent = '';
+        let parent = '', parentIndent = 0, parentIsBullet = false;
         t.split('\n').forEach(raw => {
           if (!raw.trim()) return;
           const indent = (raw.match(/^[ \t　]*/) || [''])[0].length;
           const s = raw.trim();
           const isNum = NUM_HEAD.test(s);
-          const isChild = !isNum && !!parent && (BULLET_HEAD.test(s) || indent > 0);
+          const isBullet = BULLET_HEAD.test(s);
+          // 하위 항목 판정
+          //   · 상위 줄보다 더 들여쓴 줄                       ("- 센서 개선" 아래 "  - 송풍 설비 설치")
+          //   · 번호·일반 줄 바로 아래에 오는 글머리표 줄       ("규정 교육" 아래 "- LOTO 체결")
+          //   같은 들여쓰기의 "-" 줄끼리는 서로 대등한 항목
+          const isChild = !isNum && !!parent &&
+            (indent > parentIndent || (!parentIsBullet && isBullet && indent >= parentIndent));
           const parts = splitLine(s);
           if (isChild) {
             parts.forEach(p => out.push({ text: p, parent }));
           } else {
             parts.forEach(p => out.push({ text: p, parent: '' }));
-            // 이 줄이 다음 하위 항목(글머리표·들여쓰기)들의 상위 항목이 됨(줄 전체 원문을 맥락으로 사용)
-            //   (글머리표로만 이어진 목록은 서로 대등한 항목이므로 상위 항목으로 삼지 않음)
-            parent = BULLET_HEAD.test(s) ? '' : cleanPart(s);
+            // 이 줄이 다음 하위 항목들의 상위 항목이 됨(줄 전체 원문을 맥락으로 사용)
+            parent = cleanPart(s); parentIndent = indent; parentIsBullet = isBullet;
           }
         });
         return out;
@@ -3672,6 +3674,9 @@ ${JSON.stringify(payload)}`;
     // ================================================================
     let forceSimRefresh = false;  // 🔄 버튼: 캐시 무시하고 신규 데이터로 재분석
 
+    // 분류 규칙(나누기·판정·코드북·프롬프트)을 바꿀 때마다 이 값을 올린다.
+    //   저장된 결과의 규칙 버전이 다르면 강제 다시 분석 없이 자동으로 다시 분석한다.
+    const SIM_RULES_VERSION = '2026-11-10.1';
     function simSignature(items, maxTs) {
       // 작성자+내용 정렬 결합 → FNV-1a 해시. 건수와 최신 제출시각까지 포함해
       // 추가/수정/삭제가 있으면 반드시 서명이 달라지도록 한다.
@@ -3688,7 +3693,7 @@ ${JSON.stringify(payload)}`;
       try {
         await setDoc(doc(db, 'sessions', sessId, 'meta', 'sim_cache'),
           {
-            signature: sig, engine: result.engine, model: result.model || null,
+            signature: sig, rulesVersion: SIM_RULES_VERSION, engine: result.engine, model: result.model || null,
             groupsJson: JSON.stringify(result.groups), count, ts: new Date()
           });
       } catch (e) { console.warn('유사도 캐시 저장 실패:', e); }
@@ -3709,7 +3714,9 @@ ${JSON.stringify(payload)}`;
       const tail = ` <span class="sim-cache-model">(${esc(modelLabel(engine, model))})</span>`;
       const msg = state === 'cached'
         ? `💾 저장된 분석 결과 — 개선대책 변동 없음 → AI 호출 안 함${cntTxt}${when}${tail}`
-        : `✅ 새 개선대책을 반영해 다시 분석했습니다${cntTxt}${when}${tail}`;
+        : state === 'rules'
+          ? `🔧 분류 규칙이 바뀌어 자동으로 다시 분석했습니다${cntTxt}${when}${tail}`
+          : `✅ 새 개선대책을 반영해 다시 분석했습니다${cntTxt}${when}${tail}`;
       return `<div class="sim-cache-bar"><span>${msg}</span>
         <button class="btn btn-outline btn-sm" onclick="forceSimReanalyze()">🔄 강제 다시 분석</button></div>`;
     }
@@ -3853,13 +3860,15 @@ ${JSON.stringify(payload)}`;
         const sig = simSignature(allItems, allMaxTs);
 
         // 1) 캐시 확인 — 서명(작성자·내용·건수·최신시각)이 같으면 무조건 저장된 결과를 쓴다.
-        //    엔진이 AI든 로컬이든 재사용한다. 재분석은 다음 두 경우에만 일어난다.
+        //    엔진이 AI든 로컬이든 재사용한다. 재분석은 다음 세 경우에만 일어난다.
         //      · 개선대책이 추가·수정·삭제되어 서명이 달라진 경우
+        //      · 앱의 분류 규칙 버전(SIM_RULES_VERSION)이 저장된 결과와 다른 경우
         //      · 강사가 🔄 강제 다시 분석을 누른 경우
         //    (시간 경과·화면 재진입·과정 재선택으로는 절대 AI를 호출하지 않는다)
         const cache = forced ? null : await readSimCache(sessId);
 
-        if (cache && cache.signature === sig && cache.groupsJson) {
+        const rulesChanged = !!cache && cache.signature === sig && cache.rulesVersion !== SIM_RULES_VERSION;
+        if (cache && cache.signature === sig && !rulesChanged && cache.groupsJson) {
           try {
             const groups = JSON.parse(cache.groupsJson);
             allSlot.innerHTML = simCacheBar('cached', cache.ts, allItems.length, cache.engine, cache.model)
@@ -3871,6 +3880,8 @@ ${JSON.stringify(payload)}`;
           if (!cache) console.info('[유사도] 저장된 결과 없음(또는 읽기 실패) → 최초 분석');
           else if (cache.signature !== sig)
             console.info('[유사도] 개선대책이 바뀌어 재분석', { 저장된서명: cache.signature, 현재서명: sig });
+          else if (rulesChanged)
+            console.info('[유사도] 분류 규칙이 바뀌어 재분석', { 저장된버전: cache.rulesVersion || '(없음)', 현재버전: SIM_RULES_VERSION });
         }
 
         // 2) 캐시 없음 또는 입력이 바뀜(또는 강제) → 다시 분석 후 저장
@@ -3878,7 +3889,7 @@ ${JSON.stringify(payload)}`;
         try {
           const result = await SIM.analyze(allItems);
           await saveSimCache(sessId, sig, result, allItems.length);
-          allSlot.innerHTML = simCacheBar('fresh', { seconds: Date.now() / 1000 }, allItems.length, result.engine, result.model)
+          allSlot.innerHTML = simCacheBar(rulesChanged ? 'rules' : 'fresh', { seconds: Date.now() / 1000 }, allItems.length, result.engine, result.model)
             + SIM.renderGroups(result);
         } catch (e) {
           allSlot.innerHTML = `<p class="muted">통합 분석 실패: ${esc(e.message)}</p>`;

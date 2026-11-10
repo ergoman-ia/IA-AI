@@ -2235,6 +2235,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 2) 마감 여부는 '실제로 들어갈 팀' 기준으로 판정
       const targetTeam = mine ? mine.teamId : (tSel.value || 'team_1');
       const isClosed = await checkIfClosed(sess, targetTeam);
+      lastClosedCheck = { sess, team: targetTeam, closed: isClosed, at: Date.now() };
 
       // 강사가 마감한 뒤에는 진단 수정이 불가능하며 개선대책 입력으로 전환된다.
       if (isClosed) { setBtn('개선 및 예방대책 입력', 'btn-green'); return; }
@@ -2259,9 +2260,12 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (!sessId || !teamVal) return alert('과정과 팀을 선택해 주세요.');
 
       let cfg = { teamCount: 6, scenario: 'con1', industry: 'construction' };
-      try { const c = await getDoc(doc(db, 'course_configs', sessId)); if (c.exists()) cfg = { ...cfg, ...c.data() }; } catch (e) { }   // 병합: 저장된 설정에 teamCount가 없어도 기본값 유지
-
-      const closed = await checkIfClosed(sessId, teamVal);
+      // 과정 설정과 마감 여부는 서로 관계없으므로 동시에 조회(예전에는 하나씩 차례로 기다려 느렸음)
+      const [cfgSnap, closed] = await Promise.all([
+        getDoc(doc(db, 'course_configs', sessId)).catch(() => null),
+        closedForEnter(sessId, teamVal)
+      ]);
+      if (cfgSnap && cfgSnap.exists()) cfg = { ...cfg, ...cfgSnap.data() };   // 병합: 저장된 설정에 teamCount가 없어도 기본값 유지
       sessionStorage.setItem('sim_sess', sessId);
       sessionStorage.setItem('sim_team', teamVal);
       sessionStorage.setItem('sim_teamText', teamText);
@@ -2269,8 +2273,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       sessionStorage.setItem('sim_industry', cfg.industry || 'construction');
 
       if (closed) {
-        await buildPhase2Screen(sessId, teamVal, cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
+        // 화면을 먼저 띄우고("팀 진단 결과 분석 중…" 표시), 팀 응답을 불러오는 동안 기다리게 한다.
+        const building = buildPhase2Screen(sessId, teamVal, cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
         showScreen('surveyScreen');
+        await building;
       } else {
         buildSurveyScreen(cfg.scenario || 'con1', cfg.industry || 'construction', teamText);
 
@@ -2295,6 +2301,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         }
         showScreen('surveyScreen');
       }
+    }
+
+    // 버튼 이름을 정할 때 확인한 마감 여부(입력 버튼을 누를 때 같은 조회를 다시 하지 않기 위함)
+    var lastClosedCheck = null;   // var: 위쪽 함수가 먼저 실행돼도 오류가 나지 않도록(호이스팅)
+    // '마감됨'으로 확인된 지 1분 이내면 그 결과를 그대로 쓴다.
+    //   · '마감 안 됨'은 수업 중 강사가 언제든 마감할 수 있으므로 재사용하지 않고 항상 다시 확인한다.
+    async function closedForEnter(sessId, teamId) {
+      const c = lastClosedCheck;
+      if (c && c.closed && c.sess === sessId && c.team === teamId && Date.now() - c.at < 60000) return true;
+      return checkIfClosed(sessId, teamId);
     }
 
     async function checkIfClosed(sessId, teamId) {
@@ -2470,6 +2486,11 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     // ================================================================
     //  설문 화면(2단계) — 마감 후 개선·예방대책 입력
     // ================================================================
+    window.retryPhase2 = () => {
+      const s = k => sessionStorage.getItem(k);
+      buildPhase2Screen(s('sim_sess'), s('sim_team'), s('sim_scenario') || 'con1', s('sim_industry') || 'construction', s('sim_teamText') || '');
+    };
+
     async function buildPhase2Screen(sessId, teamId, scenarioKey, industryKey, teamText) {
       $('surveyTitle').innerText = `${teamText} · 개선 및 예방대책`;
       const badge = $('surveyBadge');
@@ -2484,7 +2505,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
       const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
       const factorNames = qs.map(q => q.factor);
-      const snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
+      let snap;
+      try {
+        snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
+      } catch (e) {
+        // 화면을 먼저 띄우므로, 불러오기에 실패하면 "분석 중…"에 멈춰 보이지 않게 안내와 다시 시도 버튼을 보여 준다.
+        console.warn('팀 진단 결과 불러오기 실패:', e);
+        p2.innerHTML = `<div class="notice" style="margin-bottom:14px;">
+            팀 진단 결과를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.
+          </div>
+          <button class="btn btn-green btn-full" onclick="retryPhase2()">🔄 다시 시도</button>`;
+        return;
+      }
       // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
       const stat = analyzeTeam(snap, factorNames, []);
       stat.rows.forEach(r => r.hit = r.rank <= 3);   // 우리 팀 상위 3순위 → 녹색
@@ -2506,7 +2538,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div class="cm-rule" style="margin:2px 0 6px;font-size:14px;font-weight:800;color:#dc2626;">
           ✍️ 한 줄에 대책 하나씩만 쓰세요.
         </div>
-        <textarea id="cmInput" class="auto-list" rows="6" placeholder="구체적인 예방대책을 입력하세요…&#10;예)&#10;- 센서에 이물질이 쌓이지 않도록 송풍 설비 설치&#10;- LOTO 체결 절차 교육&#10;- 인터록 장치 훼손 금지 규정 교육&#10;- 관리감독자 작업 시작 전 점검"></textarea>
+        <textarea id="cmInput" class="auto-list" rows="6" placeholder="구체적인 예방대책을 입력하세요…&#10;예)&#10;- 위험 부위에 방호덮개 설치&#10;- 작업 시작 전 점검표로 설비 상태 확인&#10;- 신규 작업자 대상 작업절차 교육&#10;- 작업에 맞는 보호구 지급"></textarea>
         <div class="hint" style="font-size:12px;color:#64748b;margin:4px 0 10px;">
           💡 <b style="color:#dc2626;">"-"로 시작해 한 줄에 대책 하나씩</b>, 무엇을 어떻게 할지까지 적어 주세요.
           Enter를 누르면 다음 줄에 "-"가 자동으로 붙고, 빈 "-" 줄에서 Enter를 누르면 목록이 끝납니다.
@@ -2583,7 +2615,26 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const ta = e.target;
       if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
       if (ta.value === '') { ta.value = '- '; ta.setSelectionRange(2, 2); }
+      // 휴대폰 키보드가 올라오면 입력 칸이 가려지므로, 키보드가 다 올라온 뒤 칸을 화면 위쪽으로 올린다.
+      setTimeout(() => liftInput(ta), 350);
     });
+    // 입력 칸 위의 "한 줄에 대책 하나씩" 문구부터 보이도록 화면 위쪽으로 스크롤
+    function liftInput(ta) {
+      if (document.activeElement !== ta) return;
+      const anchor = (ta.previousElementSibling && ta.previousElementSibling.classList.contains('cm-rule'))
+        ? ta.previousElementSibling : ta;
+      anchor.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }
+    // 키보드가 열리고 닫히며 보이는 화면 높이가 바뀔 때도 다시 맞춤(지원하는 브라우저에서만)
+    if (window.visualViewport) {
+      let vvTimer = null;
+      window.visualViewport.addEventListener('resize', () => {
+        const ta = document.activeElement;
+        if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
+        clearTimeout(vvTimer);
+        vvTimer = setTimeout(() => { liftInput(ta); autoGrow(ta); }, 150);
+      });
+    }
     document.addEventListener('focusout', e => {
       const ta = e.target;
       if (!(ta instanceof HTMLTextAreaElement) || !ta.classList.contains('auto-list')) return;
@@ -2591,7 +2642,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     });
     function autoGrow(ta) {
       if (!ta.dataset.minH) ta.dataset.minH = String(ta.offsetHeight || 0);
-      const maxH = Math.round(window.innerHeight * 0.6);
+      const viewH = (window.visualViewport && window.visualViewport.height) || window.innerHeight;
+      const maxH = Math.round(viewH * 0.6);
       ta.style.height = 'auto';
       const want = Math.max(Number(ta.dataset.minH) || 0, ta.scrollHeight + 2);
       ta.style.height = Math.min(want, maxH) + 'px';
@@ -3097,7 +3149,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         // 3) 설비·기기·물질의 변화가 확인되지 않으면 관리적 대책(기타 미분류는 두지 않음)
         return best || '관리적 대책';
       }
-      const HAZARD_ISOLATE = /(위험원|위험발생원|발생원|설비|기계|장치|회전체|구동부|충전부|전원부|열원|소음원|진동원|가스|유해물질|화학물질|배관|탱크|에너지원)[^\n]{0,12}?격리/;
+      const HAZARD_ISOLATE = /(위험원|위험발생원|발생원|위험\s*구역|작업\s*구역|구역|설비|기계|장치|회전체|구동부|충전부|전원부|열원|소음원|진동원|가스|유해물질|화학물질|배관|탱크|에너지원)[^\n]{0,12}?격리/;
       const EQUIP_LAYOUT = /(스위치|버튼|레버|밸브|계기|계측기|모니터|화면|패널|조작반|설비|장치|기기)[^\n]{0,8}?(배치|위치|배열)/;
       const PPE_ITEM = /(보호구|ppe|안전모|하이바|안전화|안전대|안전벨트|보안경|보안면|귀마개|귀덮개|마스크|장갑|보호복|방열복|각반)/;
 
@@ -3481,7 +3533,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 [상위 항목(parent) 맥락]
 · parent 가 있는 항목은 참여자가 글머리표(-)나 들여쓰기로 그 상위 항목 아래에 적은 하위 항목입니다.
 · 하위 항목이 상위 항목의 "내용"(예: 교육할 내용, 점검할 항목, 지켜야 할 규정)이면 상위 항목의 취지를 따라 분류하세요.
-  예: parent "규정에 대한 교육" 아래 "인터록 장치 훼손 금지" → 관리적 대책(교육·훈련)
+  예: parent "규정에 대한 교육" 아래 "인터록 장치 훼손 금지", "관리감독자 작업 시작 전 점검" → 관리적 대책(교육·훈련)
 · 하위 항목이 상위 항목을 구체화한 "독립된 대책"이면 그 항목 자체로 분류하세요.
   예: parent "센서에 대한 개선 필요" 아래 "이물질이 쌓이지 않도록 바람을 쏴주는 설비 설치" → 공학적 대책
 · parent 는 판단에만 쓰고, 그룹에 넣는 것은 항목 자신의 id 입니다.
@@ -3496,7 +3548,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 · "공학적 대책": 설비·기기·장치·물질 자체에 실제 변화(설치·개조·설계 변경·자동화)가 있는 경우에만 해당 (센서, 인터록, 방호장치·덮개 설치, 난간, 국소배기, 누전차단기, 접지/절연, 잠금장치 설치, 위험발생원(설비·에너지·유해물질 등)을 물리적으로 떼어 놓는 격리, 비상정지, 자동화, HMI 화면·스위치 배열 재설계, 스위치·밸브 등 설비의 배치·위치 변경, 설비 자체의 색상 구분 표시 등)
 · "관리적 대책": 사람을 변화시키거나, 관리·조직 시스템을 바꾸거나, 사람이 하는 활동은 모두 여기에 넣습니다 (교육·훈련, TBM, 절차·매뉴얼·수칙, 작업허가, 점검·순찰·감독·확인, 표지·안내문 게시·부착, 의식·문화 개선, 인원배치, 작업시간·근무 조정, 알람 우선순위 설정 등 운영 설정 변경, LOTO(잠금·표지) 체결·전원 차단·표찰 부착 같은 작업 행위, 작업자·인원의 격리나 출입 통제, "~금지·준수" 같은 규정, 인사상 불이익·포상 같은 상벌 조치 등)
 · "보호구(PPE)": 개인보호구 지급·착용·교체·수리만 해당. 종류를 나누지 말고 한 그룹으로 묶으세요. 보호구 착용방법 교육, 착용 점검은 관리적 대책입니다.
-※ 판정은 대상(명사)이 아니라 "무엇을 하는가(서술어)"로 합니다. 예: "설계 도면 교육"→관리적, "색상 표지 부착"→관리적, "덮개 설치 여부 점검"→관리적, "인터록 설치"→공학적, "밸브 스위치 색상별 구분 표시"→공학적, "스위치 배치 변경"→공학적, "알람 우선순위 설정"→관리적, "LOTO 체결"→관리적, "전원 차단 후 표찰 부착"→관리적, "회전체를 방호울로 격리"→공학적, "작업자 격리"→관리적, "인터록 장치 훼손 금지"→관리적, "관리감독자 및 해당 부서에 대한 인사상 불이익"→관리적, "노후 안전모 교체"→보호구(PPE).
+※ 판정은 대상(명사)이 아니라 "무엇을 하는가(서술어)"로 합니다. 예: "설계 도면 교육"→관리적, "색상 표지 부착"→관리적, "덮개 설치 여부 점검"→관리적, "인터록 설치"→공학적, "밸브 스위치 색상별 구분 표시"→공학적, "스위치 배치 변경"→공학적, "알람 우선순위 설정"→관리적, "LOTO 체결"→관리적, "전원 차단 후 표찰 부착"→관리적, "회전체를 방호울로 격리"→공학적, "위험구역 격리"→공학적, "작업자 격리"→관리적, "인터록 장치 훼손 금지"→관리적, "관리감독자 및 해당 부서에 대한 인사상 불이익"→관리적, "노후 안전모 교체"→보호구(PPE).
 ※ 공학적 대책과 관리적 대책은 주제가 같아도 절대 같은 그룹에 넣지 마세요.
 ※ "기타(미분류)"는 쓰지 마세요. 설비·기기·물질의 변화가 없으면 "관리적 대책"입니다.
 
@@ -3676,7 +3728,7 @@ ${JSON.stringify(payload)}`;
 
     // 분류 규칙(나누기·판정·코드북·프롬프트)을 바꿀 때마다 이 값을 올린다.
     //   저장된 결과의 규칙 버전이 다르면 강제 다시 분석 없이 자동으로 다시 분석한다.
-    const SIM_RULES_VERSION = '2026-11-10.1';
+    const SIM_RULES_VERSION = '2026-11-10.2';
     function simSignature(items, maxTs) {
       // 작성자+내용 정렬 결합 → FNV-1a 해시. 건수와 최신 제출시각까지 포함해
       // 추가/수정/삭제가 있으면 반드시 서명이 달라지도록 한다.

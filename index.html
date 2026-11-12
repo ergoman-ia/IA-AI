@@ -1455,6 +1455,7 @@
 
         <div id="phase1Area">
           <div class="notice notice-amber" style="margin-bottom:14px;">
+            <!-- [변경 2026-11-12 #1] "더 큰 원인일수록 더 높은 점수" 문장 추가. 정답 순서를 채점하므로 참여자에게 미리 알린다. -->
             <b>[안내]</b> 아래 12가지 인적 요인이 이 사고에 <b>얼마나 기여</b>했는지 평가하세요.
             1점(기여 없음) → 5점(매우 큰 기여). <b>더 큰 원인일수록 더 높은 점수</b>를 주세요.
             <b style="color:var(--danger);">제출 후에도 마감 전까지 수정할 수 있습니다.</b>
@@ -1554,6 +1555,72 @@
 
     import { FIREBASE_CONFIG, ADMIN_PASSWORD } from "./secrets.js";
 
+    // ╔════════════════════════════════════════════════════════════════════════════╗
+    // ║  변경 기록 — 2026-11-12  (팀 정확도·일치도·가중치 쓰임 정리)                    ║
+    // ╚════════════════════════════════════════════════════════════════════════════╝
+    //  ▸ 찾는 법: 이 파일에서 "[변경 2026-11-12" 를 검색하면 바뀐 곳이 번호(#1~#11)와 함께 모두 나온다.
+    //  ▸ 조절할 수 있는 값은 "[조절값]" 으로 검색한다(아래 표의 상수 10개).
+    //
+    //  ── 왜 바꿨나 ──────────────────────────────────────────────────────────────
+    //   · 이전 팀 정확도는 '가중 점수(점수 × 가중치) 상위 3개 중 정답 수 ÷ 3'의 팀원 평균이었다.
+    //     요인별 가중치(1.0~2.5)가 정답과 무관해서, 정답을 모두 5점으로 찾아도 33~67%에 그치거나
+    //     전 문항에 같은 점수를 줘도 시나리오에 따라 0~67%가 나오는 등 실력을 가려내지 못했다.
+    //     (모의 실험: 정확한 팀이 보통 팀보다 높게 나올 확률 36~71% → 바꾼 뒤 96~98%)
+    //   · 가중치의 근거 자료는 코드와 참고 문헌 어디에서도 찾지 못했다. 원래는 '업종별 12요인
+    //     위험성 평가' 도구에서 현장 위험도를 계산하던 계수다. 그래서 정답 채점과 순위에서는 빼고,
+    //     위험수준 판단에만 쓰도록 역할을 나눴다.
+    //
+    //  ── 무엇을 바꿨나 (번호 = 코드 안의 표시) ──────────────────────────────────
+    //   #1  설문 안내문에 "더 큰 원인일수록 더 높은 점수" 추가 — 순서 채점(#4)의 전제.
+    //   #2  가중치 스위치 USE_WEIGHT_IN_RANKING 신설 — false면 순위·비율·일치도를 응답 점수(1~5)로 계산.
+    //       true로 바꾸면 예전처럼 가중 점수로 계산한다(저장 자료와 CSV에는 가중 점수가 그대로 있다).
+    //   #3  위험수준 판단 신설 — (점수 × 가중치) 합계를 0~100%로 환산. 가중치를 쓰는 유일한 지표.
+    //       성적표에 팀 평균과 (최저~최고), 참가자 화면에 본인 값과 팀 값을 보여 준다. 정답과 무관한 참고 지표.
+    //   #4  개인 정확도 = 항목 70점 + 순서 30점 (함수 scoreIndividual).
+    //       항목: 전문가 정답이 그 사람의 상위 K개(K = 정답 개수) 안에 든 비율. 동점은 걸친 만큼 나눠 인정.
+    //       순서: 정답끼리 짝지어 전문가 순위가 뒤집히지 않은 비율(같은 점수는 맞은 것으로 인정).
+    //       전문가 순위 = SCENARIOS의 answer 배열에 적힌 순서. 팀 정확도는 팀원 개인 정확도의 평균.
+    //   #5  능력자 = 항목과 순서를 모두 맞힌 팀원(개인 100점). 범위는 항상 정답 개수만큼.
+    //       (이전: 가중 점수 상위 3개가 정답과 100% 일치한 팀원)
+    //   #6  팀원 일치도 = 팀원 각자의 상위 3개가 팀 상위 3개에 모인 비율. 응답 점수 기준, 동점은 나눠 인정.
+    //       (이전: 가중 점수 기준, 동점은 문항 번호 순 → 무작위로 답한 팀도 65%가 나왔다. 지금은 44% 안팎)
+    //   #7  색상·평가 문구 기준 정리 — 초록 65점 이상, 빨강 40점 미만.
+    //       문구 "한목소리로 빗나간 팀" 추가(이전에는 다 같이 틀린 팀이 "균형 잡힌 팀워크 유지"로 나왔다).
+    //       "이미 정답을 품은 팀"은 능력자 2명 이상 → 1명 이상.
+    //   #8  파레토 차트 — 가중치를 순위에 쓰지 않을 때는 80% 기준선을 그리지 않고, 상위 TOP_SHOW개를 강조.
+    //       범례에 강조 막대의 색 설명("상위 N개")을 추가.
+    //   #9  '핵심 위험 요인' 목록을 80% 구간 대신 상위 TOP_SHOW개로(개인 피드백·대책 입력 화면·강사용 파레토 화면).
+    //       가중치 없이 80%로 자르면 12개 중 10개 안팎이 들어가 핵심이 흐려진다.
+    //   #10 성적표 화면 — 순위 칸 수를 정답 개수만큼(최소 3칸), 순위 칸 간격 축소, 위험수준 판단 칸 추가,
+    //       팀 정확도 단위 % → 점, 전문가 정답에 "1순위·2순위" 표시, 아래 설명 문구 교체.
+    //   #11 요인 개수를 숫자 12로 박아 둔 곳을 문항 수로 교체.
+    //
+    //  ── 조절값 (값만 바꾸면 되는 상수) ─────────────────────────────────────────
+    //   USE_WEIGHT_IN_RANKING  false  순위·비율·일치도에 가중치를 쓸지
+    //   ACC_ITEM_PTS / ACC_ORDER_PTS  70 / 30  항목·순서 배점(합 100)
+    //   ACC_NET_EXTRA          0      항목 채점 범위를 정답 개수보다 몇 자리 넓힐지(1~2로 올리면 점수가 후해진다)
+    //   ORDER_TIE_CREDIT       1      정답끼리 같은 점수일 때 순서 인정 비율(0.5면 절반만 인정)
+    //   ACC_HIGH / ACC_LOW     65 / 40  정확도 색상·문구 구간
+    //   AGREE_HIGH / AGREE_UNISON  70 / 80  일치도 문구 구간
+    //   TOP_SHOW               5      '핵심 위험 요인' 목록과 차트 강조 개수
+    //
+    //  ── 검토했다가 쓰지 않은 방식 (다시 논의될 때 참고) ─────────────────────────
+    //   · 일치도를 12개 요인 전체의 점수 흩어짐으로 계산: 보통 팀 58%, 의견이 갈린 팀 29%로 너무 낮게 나와 철회.
+    //   · 항목 채점 범위를 정답 개수 + 2로 확대: 보통 팀 76점·능력자 34%로 후해지지만, 정답 개수 기준으로 되돌림.
+    //   · 팀 합산 순위(파레토)를 정답과 직접 비교해 채점: 가중치를 넣으면 실력 구분이 사라져(정확한 팀 평균 36~63점) 채택하지 않음.
+    //   · 성적표·대책 입력 화면의 '즉시 조치 요인'(가중치 2.0 이상, 팀 평균 4점 이상) 표시: 순위와 겹쳐 삭제.
+    //   · 전문가 위험수준: 전문가의 요인별 점수가 없어 넣지 않음(정답 목록만으로 계산하면 가정에 따라 18~52%로 달라진다).
+    //
+    //  ── 확인된 것 ─────────────────────────────────────────────────────────────
+    //   · SCENARIOS의 answer 배열에 적힌 순서가 전문가 순위(중요도 순)다. 2026-11-12 작성자 확인.
+    //     (가중치로 계산한 순서가 아니다. 제조2·제조3은 가중치 큰 순서와 다르지만 적힌 순서가 맞다)
+    //
+    //  ── 아직 확인되지 않은 것 ─────────────────────────────────────────────────
+    //   · 가중치 1.0~2.5의 근거(출처).
+    //   · 색상·문구 구간은 가상 응답으로 정한 값이다. 실제 수강생 자료를 본 뒤 조정이 필요할 수 있다.
+    // ──────────────────────────────────────────────────────────────────────────────
+
+
     let app, db;
     try { app = initializeApp(FIREBASE_CONFIG); db = getFirestore(app); }
     catch (e) { document.getElementById('errorBanner').style.display = 'block'; }
@@ -1618,6 +1685,8 @@
       return { totalDeleted, remaining };
     };
 
+    // [변경 2026-11-12 #4] 각 시나리오의 answer 배열은 '전문가 정답 요인'이며, 적힌 순서가 곧 전문가 순위(1순위 → 마지막 순위)다.
+    //   순서를 바꾸면 팀 정확도의 순서 점수(30점)와 능력자 판정이 달라진다. 요인 이름은 QUESTIONS의 factor와 글자까지 같아야 한다.
     const SCENARIOS = {
       con1: {
         label: "건설1 — 비계 해체 추락 아차사고",
@@ -1825,15 +1894,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     // ================================================================
     //  공통 통계 엔진 — 과거 데이터와 동일한 공식을 한 곳에서 계산
-    //   (파레토 80% · 개인 정확도 · 팀 정확도 · 능력자 · 일치도)
+    //   (파레토 순위 · 개인 정확도 · 팀 정확도 · 능력자 · 일치도 · 위험수준 판단)
     // ================================================================
 
+    // [변경 2026-11-12 #2] 가중치 스위치 신설. 이전에는 모든 순위·비율·일치도·정확도가 가중 점수(item.weighted)를 썼다.
+    //   조절값: USE_WEIGHT_IN_RANKING
     // ── 요인별 가중치(1.0~2.5)의 쓰임 ─────────────────────────────────
     //   · 위험 수준: 항상 가중치를 쓴다.
     //   · 순위·비율(파레토, 성적표)과 팀원 일치도: 아래 스위치가 false면 팀원이 준 응답 점수(1~5)만 쓴다.
     //     가중치의 근거가 정해져 다시 반영하려면 true로 바꾸면 된다(저장된 자료에는 가중 점수가 그대로 있다).
     //   · 팀 정확도: 스위치와 무관하게 항상 응답 점수만 쓴다.
-    const USE_WEIGHT_IN_RANKING = false;
+    const USE_WEIGHT_IN_RANKING = false;   // [조절값] 순위·비율·일치도에 가중치를 쓸지(true면 예전 방식)
 
     // 가중치를 곱하지 않은 응답 점수(1~5). 옛 자료에 score가 없으면 가중 점수 ÷ 가중치로 되돌린다.
     function rawScoreOf(item) {
@@ -1844,13 +1915,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       return USE_WEIGHT_IN_RANKING ? (item.weighted || item.score || 0) : rawScoreOf(item);
     }
 
+    // [변경 2026-11-12 #3] 위험수준 판단 신설(화면 표시 이름: "위험수준 판단"). 가중치를 쓰는 유일한 지표.
+    //   쓰이는 곳: analyzeTeam(팀 평균·최저·최고), renderPersonalFeedback(본인 값), buildPhase2Screen(팀 값), 성적표의 위험수준 판단 칸
     // ── 위험 수준(0~100%) ─────────────────────────────────────────────
     //   (점수 × 가중치) 합계를, 전 문항 1점일 때를 0%·전 문항 5점일 때를 100%로 환산한다.
     function riskPercent(weightedSum, weightSum) {
       return Math.max(0, Math.min(100, (weightedSum - weightSum) / (4 * weightSum) * 100));
     }
-    const TOP_SHOW = 5;         // '핵심 위험 요인' 목록에 보여 줄 개수(참가자 화면과 강사용 파레토 화면)
+    const TOP_SHOW = 5;         // [조절값] '핵심 위험 요인' 목록에 보여 줄 개수(참가자 화면과 강사용 파레토 화면)
 
+    // [변경 2026-11-12 #4] 개인 정확도 채점 방식 교체.
+    //   이전: 가중 점수 상위 3개 중 정답 수 ÷ min(3, 정답 개수) × 100 (값은 0·33·67·100뿐, 정답 4개여도 3개만 봄, 순서는 안 봄)
+    //   조절값: ACC_ITEM_PTS, ACC_ORDER_PTS, ACC_NET_EXTRA, ORDER_TIE_CREDIT
     // ── 개인 정확도(0~100점) = 항목 점수 + 순서 점수 ──────────────────
     //   · 순위는 가중치를 곱하지 않은 응답 점수(1~5)로 매긴다.
     //   · 항목 점수: 정답이 '내 상위 (정답 개수 + ACC_NET_EXTRA)개' 안에 든 비율.
@@ -1860,10 +1936,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     //     상위 정답에 더 높은 점수를 줬으면 1, 같은 점수면 ORDER_TIE_CREDIT, 반대면 0.
     //     두 정답이 상위권에 든 정도 중 작은 값을 곱한다 → 항목을 맞혀야 순서 점수도 받는다.
     //   · 채점을 풀려면 ACC_NET_EXTRA를 1~2로 올리고, 조이려면 ORDER_TIE_CREDIT를 0.5로 낮춘다.
-    const ACC_ITEM_PTS = 70;    // 항목 배점
-    const ACC_ORDER_PTS = 30;   // 순서 배점
-    const ACC_NET_EXTRA = 0;    // 정답 개수보다 몇 자리 더 넓게 볼지(0이면 정답 개수만큼만)
-    const ORDER_TIE_CREDIT = 1; // 정답끼리 같은 점수를 줬을 때의 순서 인정 비율(1 = 순서가 뒤집히지만 않으면 인정)
+    const ACC_ITEM_PTS = 70;    // [조절값] 항목 배점
+    const ACC_ORDER_PTS = 30;   // [조절값] 순서 배점
+    const ACC_NET_EXTRA = 0;    // [조절값] 정답 개수보다 몇 자리 더 넓게 볼지(0이면 정답 개수만큼만)
+    const ORDER_TIE_CREDIT = 1; // [조절값] 정답끼리 같은 점수를 줬을 때의 순서 인정 비율(1 = 순서가 뒤집히지만 않으면 인정)
     // 각 요인이 '내 상위 K개'에 든 정도(0~1). 동점이 K번째 자리에 걸치면 남은 자리를 나눠 갖는다.
     function topShare(raw, K) {
       if (K <= 0 || raw.length === 0) return raw.map(() => 0);
@@ -1898,6 +1974,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       return { score: ACC_ITEM_PTS * itemRate + ACC_ORDER_PTS * orderRate, itemRate, orderRate };
     }
 
+    // [변경 2026-11-12 #2·#3·#4·#5·#6] 팀 통계 함수. 한 번에 순위용 합계(sums), 정확도, 능력자 수, 일치도, 위험수준 판단을 계산한다.
+    //   반환값: cnt, sums, total, rows(파레토·성적표 순위), paretoIdx, top3, accuracy, masterCount, consensusRate, riskAvg, riskMin, riskMax
     function analyzeTeam(snap, factorNames, answerKeys) {
       const N = factorNames.length;          // 요인 개수를 상수 12로 박지 않는다
       const sums = new Array(N).fill(0);      // 순위용 점수 합계 → 파레토 차트·성적표 순위용
@@ -1931,6 +2009,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
         const result = scoreIndividual(raw, answerIdx);
         indivAcc.push(result.score);
+        // [변경 2026-11-12 #5] 능력자 기준 교체. 이전: 개인 정확도 100%(가중 점수 상위 3개가 모두 정답)
         // 능력자는 ACC_NET_EXTRA와 무관하게 '정답 개수만큼'의 범위에서 항목과 순서를 모두 맞힌 경우만 센다
         const strict = ACC_NET_EXTRA === 0 ? result : scoreIndividual(raw, answerIdx, 0);
         if (answerIdx.length > 0 && strict.itemRate >= 0.9999 && strict.orderRate >= 0.9999) masterCount++;
@@ -1948,6 +2027,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       if (indivAcc.length > 0) {
         accuracy = Math.round(indivAcc.reduce((a, b) => a + b, 0) / indivAcc.length);
       }
+      // [변경 2026-11-12 #6] 일치도 계산 기준 교체. 이전: 가중 점수 상위 3개(동점은 문항 번호 순)가 팀 상위 3개에 든 비율
       // 팀원 일치도 = 팀원 각자가 가장 높게 평가한 3개가 팀 상위 3개에 모인 비율 (파레토와 같은 순위용 점수 기준)
       //   응답 점수는 동점이 많으므로, 3번째 자리에 걸친 동점은 걸친 만큼 나눠 인정한다.
       //   (12개 요인 전체로 계산하면 보통 팀이 58%, 의견이 갈린 팀이 29%까지 떨어져 상위 3개 방식을 쓴다)
@@ -1957,6 +2037,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         consensusRate = Math.round(focus / (Math.min(3, N) * indivShares.length) * 100);
       }
 
+      // [변경 2026-11-12 #3] 반환값에 riskAvg·riskMin·riskMax 추가(응답이 없으면 null)
       // 팀 위험 수준 = 팀원별 위험 수준의 평균, 그리고 팀원 중 최저·최고
       let riskAvg = null, riskMin = null, riskMax = null;
       if (indivRisk.length > 0) {
@@ -1967,17 +2048,22 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, consensusRate, riskAvg, riskMin, riskMax };
     }
 
+    // [변경 2026-11-12 #7] 색상·평가 문구 기준을 상수로 모음. 이전: 색상 70/40, 문구 조건에 80·75·65·60·70이 흩어져 있었다.
+    //   조절값: ACC_HIGH, ACC_LOW, AGREE_HIGH, AGREE_UNISON
     // 팀 정확도 구간 — 색상과 팀 평가 문구가 같은 기준을 쓴다
     //   (모의 실험 기준: 잘 맞힌 팀 75~80점, 보통 팀 60점 안팎, 부정확한 팀 50점 안팎, 무작위 응답 20~25점)
-    const ACC_HIGH = 65;   // 이상이면 '높음'(초록)
-    const ACC_LOW = 40;    // 미만이면 '낮음'(빨강)
-    const AGREE_HIGH = 70; // 팀원 일치도가 이 이상이면 '의견이 모인 팀'
+    const ACC_HIGH = 65;   // [조절값] 이상이면 '높음'(초록)
+    const ACC_LOW = 40;    // [조절값] 미만이면 '낮음'(빨강)
+    const AGREE_HIGH = 70; // [조절값] 팀원 일치도가 이 이상이면 '의견이 모인 팀'
     // '한목소리로 빗나간 팀' 전용 기준. 우연히 의견이 겹친 팀에 이 문구가 붙지 않도록 더 높게 잡는다.
     //   (가중치를 순위에 반영하면 무작위로 답한 팀도 일치도가 65% 안팎이 나온다)
-    const AGREE_UNISON = 80;
+    const AGREE_UNISON = 80;   // [조절값] 이 이상이면 '한목소리'
 
     function accColor(a) { return a >= ACC_HIGH ? 'var(--safe)' : a >= ACC_LOW ? 'var(--warn)' : 'var(--danger)'; }
 
+    // [변경 2026-11-12 #7] 문구 판정 순서(위에서부터 먼저 맞는 것 하나).
+    //   추가: "한목소리로 빗나간 팀"(정확도 낮음 + 일치도 AGREE_UNISON 이상)
+    //   변경: "이미 정답을 품은 팀" 능력자 2명 이상 → 1명 이상, 정확도가 낮고 한목소리가 아니면 일치도와 무관하게 "제각각"
     function getTeamEvaluation(team) {
       const accuracy = team.accuracy || 0;
       const expertCount = team.masterCount || 0;
@@ -2053,6 +2139,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
 
       const y80 = yOf(80);
+      // [변경 2026-11-12 #8] 80% 기준선을 조건부로. 이전: 항상 그렸다.
       // 80% 기준선은 누적 80% 구간으로 강조할 때(가중치를 순위에 쓸 때)만 그린다
       const line80 = !USE_WEIGHT_IN_RANKING ? '' : `<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y80.toFixed(1)}" class="pc-80"/>`
         + `<text x="${(W - padR + 3)}" y="${(y80 + 3).toFixed(1)}" class="pc-80t">80</text>`;
@@ -2079,8 +2166,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }).join('') + `</div>`;
     }
 
+    // [변경 2026-11-12 #8] 범례에 강조 막대의 색 설명 추가. 이전: 녹색(상위 3순위 등)과 '그 외'만 있어 강조 막대의 색이 설명되지 않았다.
     const paretoKeys = (showHit, hitLabel) => `<div class="legend-keys">
       ${showHit ? `<span class="lk"><i style="background:var(--pareto-hit)"></i>${hitLabel || '전문가 정답 일치'}</span>` : ''}
+      <span class="lk"><i style="background:var(--pareto)"></i>${USE_WEIGHT_IN_RANKING ? '누적 80% 구간' : `상위 ${TOP_SHOW}개`}</span>
       <span class="lk"><i style="background:var(--pareto-rest)"></i>그 외</span>
       <span class="lk"><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--ink)" stroke-width="2"/></svg>누적 비율</span>
     </div>`;
@@ -2559,6 +2648,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } catch (e) { alert('전송 실패: ' + e.message); }
     }
 
+    // [변경 2026-11-12 #9] 목록을 80% 구간 → 상위 TOP_SHOW개로. 순위 값도 rankValueOf(#2)를 쓴다. 조절값: TOP_SHOW
     // 개인 피드백 — 본인이 높게 평가한 요인 상위 TOP_SHOW개와 위험 수준을 제시 (정답은 비공개)
     //   가중치 없이 80% 구간으로 자르면 12개 중 10개 안팎이 들어가므로, 개수로 자른다.
     function renderPersonalFeedback(scores) {
@@ -2567,6 +2657,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const sorted = [...scores].map(s => ({ name: s.factor, val: rankValueOf(s) })).sort((a, b) => b.val - a.val);
       const total = sorted.reduce((s, x) => s + x.val, 0);
       const myTop = sorted.slice(0, TOP_SHOW);
+      // [변경 2026-11-12 #3] 제출 직후 화면에 "나의 위험수준 판단" 한 줄 추가
       // 내가 본 위험 수준 — (점수 × 가중치) 합계를 0~100%로 환산
       const wSum = scores.reduce((a, s) => a + (Number(s.weight) || 1), 0);
       const wScore = scores.reduce((a, s) => a + rawScoreOf(s) * (Number(s.weight) || 1), 0);
@@ -2622,8 +2713,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
       const stat = analyzeTeam(snap, factorNames, []);
       stat.rows.forEach(r => r.hit = r.rank <= 3);   // 우리 팀 상위 3순위 → 녹색
+      // [변경 2026-11-12 #9] 대책 입력 화면의 목록을 80% 구간 → 상위 TOP_SHOW개로. 제목도 "(파레토 80%)" → "(상위 N개)"
       // 목록에는 상위 TOP_SHOW개만 보여 준다(가중치 없이 80% 구간으로 자르면 10개 안팎이 들어가 핵심이 흐려진다)
       const pareto = stat.rows.slice(0, TOP_SHOW);
+      // [변경 2026-11-12 #3] 대책 입력 화면에 "우리 팀의 위험수준 판단"(평균, 최저~최고) 추가
       // 우리 팀의 위험수준 판단(참고 지표)
       const riskHtml = stat.riskAvg === null ? '' : `<div class="notice notice-slate" style="margin-top:10px;font-size:.86rem;">
           ⚠️ 우리 팀의 위험수준 판단 <b style="font-size:1.02rem;">${stat.riskAvg}%</b>
@@ -2930,6 +3023,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const factorNames = qs.map(q => q.factor);
 
       // 전체 합산용 누적 + 팀별 통계
+      // [변경 2026-11-12 #11] 요인 개수를 숫자 12 대신 문항 수로. 이전: new Array(12)
       const overallSums = new Array(factorNames.length).fill(0);
       let overallCnt = 0;
       // 팀별 조회를 순차로 await 하지 않고 한 번에 보낸다 (6팀이면 왕복 6회 → 1회분 대기)
@@ -2978,6 +3072,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           return;
         }
         t.rows.forEach(r => r.hit = consensusKeys.includes(r.name)); // 전체 상위 3순위와 일치 → 녹색
+        // [변경 2026-11-12 #9] 강사용 팀별 파레토 목록을 80% 구간 → 상위 TOP_SHOW개로. 제목과 일치도 설명 문구도 함께 바꿨다.
         const pareto = t.rows.slice(0, TOP_SHOW);   // 80% 구간 대신 상위 몇 개만 나열(가중치 없이 자르면 10개 안팎이 들어간다)
         html += `<div class="card tight">
           <div class="section-head" style="margin-bottom:8px;">
@@ -3003,6 +3098,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         if (cumPct >= 80 && paretoIdx === -1) paretoIdx = i;
         return { rank: i + 1, name: it.name, val: it.val, pct: total > 0 ? it.val / total * 100 : 0, cumPct, hit: answerKeys.includes(it.name) };
       });
+      // [변경 2026-11-12 #8] 강조 범위(inPareto)를 조건부로. 이전: 항상 누적 80% 구간.
       // 차트에서 진하게 강조할 범위.
       //   가중치를 순위에 쓸 때는 누적 80% 구간, 쓰지 않을 때는 상위 TOP_SHOW개.
       //   (가중치 없이 80%로 자르면 12개 중 10개 안팎이 강조되어 구분이 되지 않는다)
@@ -3930,6 +4026,8 @@ ${JSON.stringify(payload)}`;
         ({ name: `${k + 1}팀`, idx: k + 1, ...analyzeTeam(snap, factorNames, answerKeys) }));
 
       // ── 성적 요약 테이블 ──
+      // [변경 2026-11-12 #10] 성적표 표 구성 변경. 이전: 순위 3칸 고정, 위험수준 판단 칸 없음, 정확도 단위 %.
+      //   순위·비율은 analyzeTeam의 rows(파레토와 같은 값)를 그대로 쓴다.
       // 순위 칸 수 = 정답 개수(최소 3칸) → 정답이 4개인 시나리오는 4순위까지 보여 준다
       const rankCount = Math.max(3, answerKeys.length);
       const RANK_CELL = 'padding-left:4px;padding-right:4px;';   // 순위 칸 좌우 여백(기본 11px → 4px)
@@ -3946,6 +4044,7 @@ ${JSON.stringify(payload)}`;
           return `<td style="${RANK_CELL}"><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.74rem;padding:2px 7px;">${esc(it.name)}</span>
             <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%</div></td>`;
         }).join('');
+        // [변경 2026-11-12 #10] 위험수준 판단 칸(#3의 값). 순위 칸 다음, 능력자 칸 앞에 놓는다.
         // 위험 수준: 평균을 위에, 그 아래 작은 글씨로 (최저~최고)
         const riskCol = t.riskAvg === null ? `<td style="color:#e2e8f0;">-</td>` : `<td style="line-height:1.35;">
             <strong style="font-size:1rem;color:var(--ink);">${t.riskAvg}%</strong><br>
@@ -3965,6 +4064,8 @@ ${JSON.stringify(payload)}`;
         </tr>`;
       });
 
+      // [변경 2026-11-12 #10] 전문가 정답에 "N순위 ·" 표시 추가(정답 순서를 채점하므로), 표 머리글·설명 문구 교체, 팀별 배지 단위 % → 점.
+      //   설명 문구의 "상위 N개"는 시나리오의 정답 개수(answerKeys.length)에 맞춰 자동으로 바뀐다.
       let html = `
         <div class="notice notice-amber" style="margin-bottom:16px;">
           <div style="font-size:1rem;font-weight:800;">시나리오 · ${esc(sc ? sc.label : '-')}</div>

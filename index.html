@@ -1828,9 +1828,34 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     //   (파레토 80% · 개인 정확도 · 팀 정확도 · 능력자 · 일치도)
     // ================================================================
 
+    // ── 요인별 가중치(1.0~2.5)의 쓰임 ─────────────────────────────────
+    //   · 위험 수준: 항상 가중치를 쓴다.
+    //   · 순위·비율(파레토, 성적표)과 팀원 일치도: 아래 스위치가 false면 팀원이 준 응답 점수(1~5)만 쓴다.
+    //     가중치의 근거가 정해져 다시 반영하려면 true로 바꾸면 된다(저장된 자료에는 가중 점수가 그대로 있다).
+    //   · 팀 정확도: 스위치와 무관하게 항상 응답 점수만 쓴다.
+    const USE_WEIGHT_IN_RANKING = false;
+
+    // 가중치를 곱하지 않은 응답 점수(1~5). 옛 자료에 score가 없으면 가중 점수 ÷ 가중치로 되돌린다.
+    function rawScoreOf(item) {
+      return Number(item.score) || (item.weight ? (Number(item.weighted) || 0) / item.weight : 0);
+    }
+    // 순위·비율·일치도 계산에 쓰는 값
+    function rankValueOf(item) {
+      return USE_WEIGHT_IN_RANKING ? (item.weighted || item.score || 0) : rawScoreOf(item);
+    }
+
+    // ── 위험 수준(0~100%) ─────────────────────────────────────────────
+    //   (점수 × 가중치) 합계를, 전 문항 1점일 때를 0%·전 문항 5점일 때를 100%로 환산한다.
+    function riskPercent(weightedSum, weightSum) {
+      return Math.max(0, Math.min(100, (weightedSum - weightSum) / (4 * weightSum) * 100));
+    }
+    const ALERT_WEIGHT = 2.0;   // 경보 요인: 가중치가 이 값 이상이고
+    const ALERT_SCORE = 4;      //            팀 평균 점수가 이 값 이상인 요인
+    const RANDOM_VARIANCE = 2;  // 1~5점을 무작위로 고를 때의 분산 = (5² − 1) ÷ 12 → 일치도의 0% 기준
+    const TOP_SHOW = 5;         // 참가자 화면에 '핵심 위험 요인'으로 보여 줄 개수
+
     // ── 개인 정확도(0~100점) = 항목 점수 + 순서 점수 ──────────────────
     //   · 순위는 가중치를 곱하지 않은 응답 점수(1~5)로 매긴다.
-    //     (가중치는 파레토 차트용이며, 정답 채점에는 쓰지 않는다)
     //   · 항목 점수: 내 상위 K개(K = 정답 개수)에 든 정답 수 ÷ K.
     //     동점이 K번째 자리에 걸치면 걸친 만큼 나눠 인정한다.
     //   · 순서 점수: 정답을 둘씩 짝지어(전문가 정답 목록의 앞쪽이 상위 순위),
@@ -1873,30 +1898,34 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     function analyzeTeam(snap, factorNames, answerKeys) {
       const N = factorNames.length;          // 요인 개수를 상수 12로 박지 않는다
-      const sums = new Array(N).fill(0);      // 가중 점수 합계 → 파레토 차트·성적표 순위·일치도용
+      const sums = new Array(N).fill(0);      // 순위용 점수 합계 → 파레토 차트·성적표 순위용
       let cnt = 0;
-      const indivTop3 = [];   // 모든 팀원의 개인 Top3 요인명(가중 점수 기준, 평탄화) → 일치도용
+      const rawAll = [];      // 팀원별 응답 점수(요인 전체) → 일치도·경보 요인용
+      const weightOf = new Array(N).fill(1);  // 요인별 가중치(저장된 응답에서 읽는다) → 경보 요인용
       const indivAcc = [];    // 개인별 정확도(0~100점) — 응답 점수 기준
       let masterCount = 0;    // 능력자: 정답을 모두 자신의 상위 K개에 넣은 팀원 수
+      const indivRisk = [];   // 개인별 위험 수준(0~100%) — (점수 × 가중치) 합계를 최소~최대 사이에서 환산
       // 정답 요인의 문항 위치(정답 목록의 순서 = 전문가 순위)
       const answerIdx = answerKeys.map(k => factorNames.indexOf(k)).filter(i => i >= 0);
 
       snap.forEach(d => {
         const s = d.data().scores;
         if (!s || !Array.isArray(s)) return;
-        const my = [];                       // 가중 점수(일치도·파레토용)
-        const raw = new Array(N).fill(0);    // 가중치를 곱하지 않은 응답 점수(정확도용)
+        const raw = new Array(N).fill(0);    // 가중치를 곱하지 않은 응답 점수(정확도·일치도용)
+        let wSum = 0, wScore = 0;            // 위험 수준용: 가중치 합, (점수 × 가중치) 합
         s.forEach((item, idx) => {
           if (idx < N) {
-            const val = (item.weighted || item.score || 0);
-            sums[idx] += val;
-            my.push({ name: factorNames[idx], val });
-            raw[idx] = Number(item.score) || (item.weight ? (Number(item.weighted) || 0) / item.weight : 0);
+            sums[idx] += rankValueOf(item);
+            raw[idx] = rawScoreOf(item);
+            const w = Number(item.weight) || 1;
+            weightOf[idx] = w;
+            wSum += w;
+            wScore += raw[idx] * w;
           }
         });
         cnt++;
-        my.sort((a, b) => b.val - a.val);
-        indivTop3.push(...my.slice(0, 3).map(x => x.name));
+        rawAll.push(raw);
+        if (wSum > 0) indivRisk.push(riskPercent(wScore, wSum));
 
         const result = scoreIndividual(raw, answerIdx);
         indivAcc.push(result.score);
@@ -1906,23 +1935,42 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 팀 집계 → 정렬 → 파레토 (계산식은 analyzeFromSums 한 곳에만 둔다)
       const { rows, total, paretoIdx } = analyzeFromSums(sums, factorNames, answerKeys);
 
-      // 성적표의 팀 순위·비율은 파레토와 같은 rows(가중 점수)를 그대로 쓴다 → 두 화면의 숫자가 같다.
+      // 성적표의 팀 순위·비율은 파레토와 같은 rows를 그대로 쓴다 → 두 화면의 숫자가 같다.
       const top3 = rows.slice(0, 3);
-      const top3Names = top3.map(x => x.name);
 
       // 팀 정확도 = 팀원 개인 정확도의 평균 (능력자 수는 위에서 집계)
       let accuracy = 0;
       if (indivAcc.length > 0) {
         accuracy = Math.round(indivAcc.reduce((a, b) => a + b, 0) / indivAcc.length);
       }
-      // 팀원 일치도 = 팀원 각자의 상위 3개가 팀 상위 3개에 모인 비율 (가중 점수 기준 — 파레토와 같은 기준)
+      // 팀원 일치도 = 요인 전체(12개)에서 팀원들이 준 점수가 모인 정도
+      //   요인마다 팀원 점수의 흩어짐(표본분산)을 구해 평균하고, 무작위로 답했을 때의 흩어짐과 비교한다.
+      //   무작위 응답 수준이면 0%, 모두 같은 점수를 줬으면 100%. (같은 요인에는 모두 같은 가중치가 붙으므로 가중치와 무관하다)
+      //   응답자가 1명이면 비교할 대상이 없어 100%로 둔다.
       let consensusRate = 0;
-      if (indivTop3.length > 0) {
-        const focus = indivTop3.filter(n => top3Names.includes(n)).length;
-        consensusRate = Math.round(focus / indivTop3.length * 100);
+      const n = rawAll.length;
+      if (n === 1) consensusRate = 100;
+      else if (n > 1 && N > 0) {
+        let varSum = 0;
+        for (let i = 0; i < N; i++) {
+          const mean = rawAll.reduce((a, r) => a + r[i], 0) / n;
+          varSum += rawAll.reduce((a, r) => a + (r[i] - mean) ** 2, 0) / (n - 1);
+        }
+        consensusRate = Math.round(Math.max(0, 1 - (varSum / N) / RANDOM_VARIANCE) * 100);
       }
 
-      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, consensusRate };
+      // 팀 위험 수준 = 팀원별 위험 수준의 평균, 그리고 팀원 중 최저·최고
+      let riskAvg = null, riskMin = null, riskMax = null;
+      if (indivRisk.length > 0) {
+        riskAvg = Math.round(indivRisk.reduce((a, b) => a + b, 0) / indivRisk.length);
+        riskMin = Math.round(Math.min(...indivRisk));
+        riskMax = Math.round(Math.max(...indivRisk));
+      }
+      // 경보 요인 = 가중치가 큰 요인(ALERT_WEIGHT 이상) 가운데 팀 평균 점수가 높은 것(ALERT_SCORE 이상)
+      const riskAlerts = n === 0 ? [] : factorNames.filter((_, i) =>
+        weightOf[i] >= ALERT_WEIGHT && rawAll.reduce((a, r) => a + r[i], 0) / n >= ALERT_SCORE);
+
+      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, consensusRate, riskAvg, riskMin, riskMax, riskAlerts };
     }
 
     // 팀 정확도 구간 — 색상과 팀 평가 문구가 같은 기준을 쓴다
@@ -1930,8 +1978,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     const ACC_HIGH = 65;   // 이상이면 '높음'(초록)
     const ACC_LOW = 40;    // 미만이면 '낮음'(빨강)
     const AGREE_HIGH = 70; // 팀원 일치도가 이 이상이면 '의견이 모인 팀'
-    // '한목소리로 빗나간 팀' 전용 기준. 일치도는 가중 점수 기준이라 무작위로 답한 팀도 65% 안팎이 나오므로,
-    // 70%로 두면 우연히 넘는 팀이 많다 → 더 높게 잡는다.
+    // '한목소리로 빗나간 팀' 전용 기준. 우연히 의견이 겹친 팀에 이 문구가 붙지 않도록 더 높게 잡는다.
+    //   (가중치를 순위에 반영하면 무작위로 답한 팀도 일치도가 65% 안팎이 나온다)
     const AGREE_UNISON = 80;
 
     function accColor(a) { return a >= ACC_HIGH ? 'var(--safe)' : a >= ACC_LOW ? 'var(--warn)' : 'var(--danger)'; }
@@ -2516,15 +2564,18 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       } catch (e) { alert('전송 실패: ' + e.message); }
     }
 
-    // 개인 피드백 — 본인 진단의 핵심요인(파레토 80%)만 제시 (정답은 비공개)
+    // 개인 피드백 — 본인이 높게 평가한 요인 상위 TOP_SHOW개와 위험 수준을 제시 (정답은 비공개)
+    //   가중치 없이 80% 구간으로 자르면 12개 중 10개 안팎이 들어가므로, 개수로 자른다.
     function renderPersonalFeedback(scores) {
       const el = $('personalFeedback');
       if (!el) return;
-      const sorted = [...scores].map(s => ({ name: s.factor, val: s.weighted })).sort((a, b) => b.val - a.val);
+      const sorted = [...scores].map(s => ({ name: s.factor, val: rankValueOf(s) })).sort((a, b) => b.val - a.val);
       const total = sorted.reduce((s, x) => s + x.val, 0);
-      let cum = 0, idx = -1;
-      sorted.forEach((s, i) => { cum += s.val; if (total > 0 && cum / total >= 0.8 && idx === -1) idx = i; });
-      const myTop = sorted.slice(0, idx + 1);
+      const myTop = sorted.slice(0, TOP_SHOW);
+      // 내가 본 위험 수준 — (점수 × 가중치) 합계를 0~100%로 환산
+      const wSum = scores.reduce((a, s) => a + (Number(s.weight) || 1), 0);
+      const wScore = scores.reduce((a, s) => a + rawScoreOf(s) * (Number(s.weight) || 1), 0);
+      const myRisk = wSum > 0 ? Math.round(riskPercent(wScore, wSum)) : null;
 
       el.innerHTML = `<div class="notice notice-blue" style="padding:16px;">
         <div style="font-weight:800;color:#1e3a8a;margin-bottom:10px;">🔎 내가 지목한 핵심 위험 요인</div>
@@ -2532,6 +2583,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           ${myTop.map((x, i) => `<span class="badge bg-blue" style="font-size:.85rem;">
             ${i + 1}. ${esc(x.name)} <span style="opacity:.8;font-weight:600;">${total > 0 ? Math.round(x.val / total * 100) : 0}%</span></span>`).join('')}
         </div>
+        ${myRisk === null ? '' : `<div style="margin-top:12px;font-size:.9rem;color:#1e3a8a;">
+          ⚠️ 내가 본 사고 위험 수준 <b style="font-size:1.05rem;">${myRisk}%</b>
+          <span style="font-size:.78rem;opacity:.8;">(요인별 중요도를 반영한 참고 값)</span></div>`}
         <div class="hint" style="margin-top:10px;color:#1e40af;">팀원과 토론한 뒤, 마감 후 개선·예방대책을 입력하게 됩니다.</div>
       </div>`;
     }
@@ -2573,7 +2627,14 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
       const stat = analyzeTeam(snap, factorNames, []);
       stat.rows.forEach(r => r.hit = r.rank <= 3);   // 우리 팀 상위 3순위 → 녹색
-      const pareto = stat.rows.filter(r => r.inPareto);
+      // 목록에는 상위 TOP_SHOW개만 보여 준다(가중치 없이 80% 구간으로 자르면 10개 안팎이 들어가 핵심이 흐려진다)
+      const pareto = stat.rows.slice(0, TOP_SHOW);
+      // 우리 팀이 본 위험 수준(참고 지표)과 경보 요인
+      const riskHtml = stat.riskAvg === null ? '' : `<div class="notice notice-slate" style="margin-top:10px;font-size:.86rem;">
+          ⚠️ 우리 팀이 본 사고 위험 수준 <b style="font-size:1.02rem;">${stat.riskAvg}%</b>
+          <span class="muted" style="font-size:.78rem;">(팀원 최저 ${stat.riskMin}% ~ 최고 ${stat.riskMax}%)</span>
+          ${stat.riskAlerts.length ? `<div style="margin-top:4px;color:var(--danger);font-weight:700;">즉시 조치 요인: ${stat.riskAlerts.map(esc).join(' · ')}</div>` : ''}
+        </div>`;
 
       p2.innerHTML = `
         <div class="notice notice-green" style="margin-bottom:14px;">
@@ -2582,8 +2643,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         </div>
 
         <div class="card tight" style="margin-bottom:14px;">
-          <div class="eyebrow" style="margin-bottom:8px;">우리 팀 진단 — 핵심 위험 요인 (파레토 80%)</div>
-          ${stat.cnt > 0 ? paretoKeys(true, '우리 팀 상위 3순위') + paretoChart(stat.rows, { height: 220, showHit: true, mark: false }) + paretoLegend(pareto, { showHit: true, mark: false })
+          <div class="eyebrow" style="margin-bottom:8px;">우리 팀 진단 — 핵심 위험 요인 (상위 ${TOP_SHOW}개)</div>
+          ${stat.cnt > 0 ? paretoKeys(true, '우리 팀 상위 3순위') + paretoChart(stat.rows, { height: 220, showHit: true, mark: false }) + paretoLegend(pareto, { showHit: true, mark: false }) + riskHtml
           : '<p class="empty">아직 응답 데이터가 없습니다.</p>'}
         </div>
 
@@ -2914,7 +2975,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토 — 80% 구간이 곧 그 팀의 ‘진단 결론’</div>
-        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.</div>` : ''}
+        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.<br><b>일치도</b>는 12개 요인마다 팀원들이 준 점수가 얼마나 모였는지를 나타냅니다(무작위로 답한 수준이면 0%, 모두 같은 점수면 100%).</div>` : ''}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">`;
 
       teams.forEach(t => {
@@ -3872,23 +3933,32 @@ ${JSON.stringify(payload)}`;
       // ── 성적 요약 테이블 ──
       // 순위 칸 수 = 정답 개수(최소 3칸) → 정답이 4개인 시나리오는 4순위까지 보여 준다
       const rankCount = Math.max(3, answerKeys.length);
+      const RANK_CELL = 'padding-left:4px;padding-right:4px;';   // 순위 칸 좌우 여백(기본 11px → 4px)
       let rows = '';
       teams.forEach(t => {
         if (!t.cnt) {
-          rows += `<tr><td><strong>${t.name}</strong></td><td colspan="${rankCount + 3}" class="muted" style="font-size:.82rem;">응답 없음</td></tr>`;
+          rows += `<tr><td><strong>${t.name}</strong></td><td colspan="${rankCount + 4}" class="muted" style="font-size:.82rem;">응답 없음</td></tr>`;
           return;
         }
+        // 순위 칸은 좌우 여백을 줄여 붙여 보여 준다(위험 수준 칸이 들어갈 자리 확보)
         const rankCols = Array.from({ length: rankCount }, (_, r) => {
-          const it = t.rows[r];         // 파레토와 같은 팀 순위·비율(가중 점수 기준)
-          if (!it) return `<td style="color:#e2e8f0;">-</td>`;
-          return `<td><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.76rem;padding:3px 8px;">${esc(it.name)}</span>
+          const it = t.rows[r];         // 파레토와 같은 팀 순위·비율
+          if (!it) return `<td style="${RANK_CELL}color:#e2e8f0;">-</td>`;
+          return `<td style="${RANK_CELL}"><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.74rem;padding:2px 7px;">${esc(it.name)}</span>
             <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%</div></td>`;
         }).join('');
+        // 위험 수준: 평균을 위에, 그 아래 작은 글씨로 (최저~최고)
+        const riskCol = t.riskAvg === null ? `<td style="color:#e2e8f0;">-</td>` : `<td style="line-height:1.35;">
+            <strong style="font-size:1rem;color:var(--ink);">${t.riskAvg}%</strong><br>
+            <span style="font-size:.72rem;color:var(--muted-2);white-space:nowrap;">(${t.riskMin}~${t.riskMax}%)</span>
+            ${t.riskAlerts.length ? `<div style="font-size:.7rem;color:var(--danger);font-weight:700;margin-top:2px;" title="${esc(t.riskAlerts.join(', '))}">⚠ ${t.riskAlerts.map(a => esc(shortFactor(a))).join(' · ')}</div>` : ''}
+          </td>`;
         const evalTxt = getTeamEvaluation(t);
         rows += `<tr>
           <td><strong>${t.name}</strong><br><span style="font-size:.76rem;color:var(--muted);">${t.cnt}명</span></td>
           <td><span class="badge ${t.consensusRate >= 80 ? 'bg-green' : t.consensusRate >= 50 ? 'bg-amber' : 'bg-red'}">${t.consensusRate}%</span></td>
           ${rankCols}
+          ${riskCol}
           <td><strong style="color:var(--brand);">${t.masterCount}</strong>명</td>
           <td style="line-height:1.4;">
             <strong style="color:${accColor(t.accuracy)};font-size:1rem;">${t.accuracy}점</strong><br>
@@ -3910,8 +3980,8 @@ ${JSON.stringify(payload)}`;
         <div class="table-wrap" style="margin-bottom:12px;">
           <table>
             <thead><tr>
-              <th>팀</th><th>팀원 일치도</th>${Array.from({ length: rankCount }, (_, r) => `<th>${r + 1}순위</th>`).join('')}
-              <th>능력자</th><th>팀 정확도</th>
+              <th>팀</th><th>팀원 일치도</th>${Array.from({ length: rankCount }, (_, r) => `<th style="${RANK_CELL}">${r + 1}순위</th>`).join('')}
+              <th>위험 수준</th><th>능력자</th><th>팀 정확도</th>
             </tr></thead>
             <tbody>${rows}</tbody>
           </table>
@@ -3920,7 +3990,10 @@ ${JSON.stringify(payload)}`;
           <b style="color:var(--brand);">팀 정확도</b> · 팀원별 점수(정답 항목 70점 + 정답 순서 30점)의 평균 &nbsp;|&nbsp;
           <b style="color:var(--brand);">능력자</b> · 가장 높게 평가한 요인이 전문가 정답과 모두 일치한 팀원 &nbsp;|&nbsp;
           <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
-          <br>팀 순위·비율과 팀원 일치도는 <b>파레토 분석 화면과 같은 값</b>(요인별 가중치 반영)입니다. 팀 정확도와 능력자는 <b>응답 점수(1~5점)</b>로 채점합니다.
+          <br><b style="color:var(--brand);">팀원 일치도</b> · 12개 요인마다 팀원들이 준 점수가 얼마나 모였는지를 나타냅니다(무작위로 답한 수준이면 0%, 모두 같은 점수면 100%).
+          <br><b style="color:var(--brand);">위험 수준</b> · 팀원별 (점수 × 가중치) 합계를 0~100%로 환산한 값의 평균이며, 괄호는 팀원 중 최저~최고입니다. 정답과 무관한 참고 지표입니다.
+          <span style="color:var(--danger);font-weight:700;">⚠</span> 표시는 가중치 ${ALERT_WEIGHT.toFixed(1)} 이상인 요인 가운데 팀 평균이 ${ALERT_SCORE}점 이상인 <b>즉시 조치 요인</b>입니다.
+          <br>팀 순위·비율, 팀원 일치도, 팀 정확도, 능력자는 모두 팀원이 준 <b>응답 점수(1~5점)</b>로 계산하며, 순위와 비율은 파레토 분석 화면과 같습니다. 요인별 가중치는 <b>위험 수준</b>에만 씁니다.
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">팀별 개선 및 예방대책</div>`;

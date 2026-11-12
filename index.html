@@ -1855,13 +1855,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     // ── 개인 정확도(0~100점) = 항목 점수 + 순서 점수 ──────────────────
     //   · 순위는 가중치를 곱하지 않은 응답 점수(1~5)로 매긴다.
-    //   · 항목 점수: 내 상위 K개(K = 정답 개수)에 든 정답 수 ÷ K.
-    //     동점이 K번째 자리에 걸치면 걸친 만큼 나눠 인정한다.
+    //   · 항목 점수: 정답이 '내 상위 (정답 개수 + ACC_NET_EXTRA)개' 안에 든 비율.
+    //     예) 정답 3개 → 내가 높게 준 상위 5개 안에 정답 3개가 다 있으면 항목 만점.
+    //     마지막 자리에 동점이 걸치면 걸친 만큼 나눠 인정한다.
     //   · 순서 점수: 정답을 둘씩 짝지어(전문가 정답 목록의 앞쪽이 상위 순위),
-    //     상위 정답에 더 높은 점수를 줬으면 1, 같으면 0.5, 반대면 0.
-    //     두 정답이 상위 K개에 든 정도 중 작은 값을 곱한다 → 항목을 맞혀야 순서 점수도 받는다.
+    //     상위 정답에 더 높은 점수를 줬으면 1, 같은 점수면 ORDER_TIE_CREDIT, 반대면 0.
+    //     두 정답이 상위권에 든 정도 중 작은 값을 곱한다 → 항목을 맞혀야 순서 점수도 받는다.
+    //   · 채점을 조이려면 ACC_NET_EXTRA를 0~1로, ORDER_TIE_CREDIT를 0.5로 낮춘다.
     const ACC_ITEM_PTS = 70;    // 항목 배점
     const ACC_ORDER_PTS = 30;   // 순서 배점
+    const ACC_NET_EXTRA = 2;    // 정답 개수보다 몇 자리 더 넓게 볼지(0이면 정답 개수만큼만)
+    const ORDER_TIE_CREDIT = 1; // 정답끼리 같은 점수를 줬을 때의 순서 인정 비율(1 = 순서가 뒤집히지만 않으면 인정)
     // 각 요인이 '내 상위 K개'에 든 정도(0~1). 동점이 K번째 자리에 걸치면 남은 자리를 나눠 갖는다.
     function topShare(raw, K) {
       if (K <= 0 || raw.length === 0) return raw.map(() => 0);
@@ -1877,7 +1881,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const K = answerIdx.length;
       if (K === 0) return { score: 0, itemRate: 0, orderRate: 0 };   // 정답 비공개(참가자 화면) 등
 
-      const incl = topShare(raw, K);
+      const incl = topShare(raw, K + ACC_NET_EXTRA);
 
       const itemRate = answerIdx.reduce((sum, i) => sum + incl[i], 0) / K;
 
@@ -1886,7 +1890,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         for (let b = a + 1; b < K; b++) {
           pairs++;
           const hi = raw[answerIdx[a]], lo = raw[answerIdx[b]];
-          const credit = hi > lo ? 1 : hi === lo ? 0.5 : 0;
+          const credit = hi > lo ? 1 : hi === lo ? ORDER_TIE_CREDIT : 0;
           pairSum += credit * Math.min(incl[answerIdx[a]], incl[answerIdx[b]]);
         }
       }
@@ -1903,7 +1907,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const indivShares = []; // 팀원별 '내 상위 3개'에 든 정도(순위용 점수 기준, 동점은 나눠 인정) → 일치도용
       const weightOf = new Array(N).fill(1);  // 요인별 가중치(저장된 응답에서 읽는다) → 경보 요인용
       const indivAcc = [];    // 개인별 정확도(0~100점) — 응답 점수 기준
-      let masterCount = 0;    // 능력자: 정답을 모두 자신의 상위 K개에 넣은 팀원 수
+      let masterCount = 0;    // 능력자: 정답을 모두 자신의 상위 (정답 개수 + ACC_NET_EXTRA)개 안에 넣은 팀원 수
       const indivRisk = [];   // 개인별 위험 수준(0~100%) — (점수 × 가중치) 합계를 최소~최대 사이에서 환산
       // 정답 요인의 문항 위치(정답 목록의 순서 = 전문가 순위)
       const answerIdx = answerKeys.map(k => factorNames.indexOf(k)).filter(i => i >= 0);
@@ -1972,9 +1976,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     }
 
     // 팀 정확도 구간 — 색상과 팀 평가 문구가 같은 기준을 쓴다
-    //   (모의 실험 기준: 잘 맞힌 팀 70점대, 보통 팀 55점 안팎, 무작위 응답 20점 안팎)
-    const ACC_HIGH = 65;   // 이상이면 '높음'(초록)
-    const ACC_LOW = 40;    // 미만이면 '낮음'(빨강)
+    //   (모의 실험 기준: 잘 맞힌 팀 90점대, 보통 팀 75점 안팎, 부정확한 팀 65점 안팎, 무작위 응답 35~40점)
+    const ACC_HIGH = 75;   // 이상이면 '높음'(초록)
+    const ACC_LOW = 50;    // 미만이면 '낮음'(빨강)
     const AGREE_HIGH = 70; // 팀원 일치도가 이 이상이면 '의견이 모인 팀'
     // '한목소리로 빗나간 팀' 전용 기준. 우연히 의견이 겹친 팀에 이 문구가 붙지 않도록 더 높게 잡는다.
     //   (가중치를 순위에 반영하면 무작위로 답한 팀도 일치도가 65% 안팎이 나온다)
@@ -3984,8 +3988,8 @@ ${JSON.stringify(payload)}`;
           </table>
         </div>
         <div class="notice notice-slate" style="margin-bottom:22px;font-size:.82rem;">
-          <b style="color:var(--brand);">팀 정확도</b> · 팀원별 점수(정답 항목 70점 + 정답 순서 30점)의 평균 &nbsp;|&nbsp;
-          <b style="color:var(--brand);">능력자</b> · 가장 높게 평가한 요인이 전문가 정답과 모두 일치한 팀원 &nbsp;|&nbsp;
+          <b style="color:var(--brand);">팀 정확도</b> · 팀원별 점수의 평균입니다. 항목 70점은 전문가 정답이 그 팀원의 상위 ${answerKeys.length + ACC_NET_EXTRA}개 안에 든 정도, 순서 30점은 정답끼리의 순서가 뒤집히지 않은 정도입니다.
+          <br><b style="color:var(--brand);">능력자</b> · 전문가 정답 ${answerKeys.length}개를 모두 자신의 상위 ${answerKeys.length + ACC_NET_EXTRA}개 안에 넣은 팀원입니다(순서는 무관). &nbsp;|&nbsp;
           <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
           <br><b style="color:var(--brand);">팀원 일치도</b> · 팀원 각자가 가장 높게 평가한 요인 3개가 팀 상위 3개(1~3순위)에 모인 비율입니다.
           <br><b style="color:var(--brand);">위험 수준</b> · 팀원별 (점수 × 가중치) 합계를 0~100%로 환산한 값의 평균이며, 괄호는 팀원 중 최저~최고입니다. 정답과 무관한 참고 지표입니다.

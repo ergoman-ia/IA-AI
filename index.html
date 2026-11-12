@@ -1873,11 +1873,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
     function analyzeTeam(snap, factorNames, answerKeys) {
       const N = factorNames.length;          // 요인 개수를 상수 12로 박지 않는다
-      const sums = new Array(N).fill(0);      // 가중 점수 합계 → 파레토 차트용
-      const rawSums = new Array(N).fill(0);   // 응답 점수 합계 → 성적표 순위·일치도용
+      const sums = new Array(N).fill(0);      // 가중 점수 합계 → 파레토 차트·성적표 순위·일치도용
       let cnt = 0;
-      const indivShares = []; // 팀원별 '내 상위 3개'에 든 정도(응답 점수 기준)
-      const indivAcc = [];    // 개인별 정확도(0~100점)
+      const indivTop3 = [];   // 모든 팀원의 개인 Top3 요인명(가중 점수 기준, 평탄화) → 일치도용
+      const indivAcc = [];    // 개인별 정확도(0~100점) — 응답 점수 기준
       let masterCount = 0;    // 능력자: 정답을 모두 자신의 상위 K개에 넣은 팀원 수
       // 정답 요인의 문항 위치(정답 목록의 순서 = 전문가 순위)
       const answerIdx = answerKeys.map(k => factorNames.indexOf(k)).filter(i => i >= 0);
@@ -1885,16 +1884,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       snap.forEach(d => {
         const s = d.data().scores;
         if (!s || !Array.isArray(s)) return;
-        const raw = new Array(N).fill(0);    // 가중치를 곱하지 않은 응답 점수
+        const my = [];                       // 가중 점수(일치도·파레토용)
+        const raw = new Array(N).fill(0);    // 가중치를 곱하지 않은 응답 점수(정확도용)
         s.forEach((item, idx) => {
           if (idx < N) {
-            sums[idx] += (item.weighted || item.score || 0);
+            const val = (item.weighted || item.score || 0);
+            sums[idx] += val;
+            my.push({ name: factorNames[idx], val });
             raw[idx] = Number(item.score) || (item.weight ? (Number(item.weighted) || 0) / item.weight : 0);
-            rawSums[idx] += raw[idx];
           }
         });
         cnt++;
-        indivShares.push(topShare(raw, 3));
+        my.sort((a, b) => b.val - a.val);
+        indivTop3.push(...my.slice(0, 3).map(x => x.name));
 
         const result = scoreIndividual(raw, answerIdx);
         indivAcc.push(result.score);
@@ -1904,33 +1906,33 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       // 팀 집계 → 정렬 → 파레토 (계산식은 analyzeFromSums 한 곳에만 둔다)
       const { rows, total, paretoIdx } = analyzeFromSums(sums, factorNames, answerKeys);
 
-      const top3 = rows.slice(0, 3);          // 가중 점수 기준 팀 상위 3개(파레토와 같은 순위)
-
-      // 성적표용 팀 순위 — 정확도와 같은 기준(가중치를 곱하지 않은 응답 점수)으로 매긴다
-      const rankRows = analyzeFromSums(rawSums, factorNames, answerKeys).rows;   // 전체 순위(성적표가 필요한 만큼 꺼내 쓴다)
-      const rankTop3 = rankRows.slice(0, 3);
-      const rankTopIdx = rankTop3.map(r => factorNames.indexOf(r.name));
+      // 성적표의 팀 순위·비율은 파레토와 같은 rows(가중 점수)를 그대로 쓴다 → 두 화면의 숫자가 같다.
+      const top3 = rows.slice(0, 3);
+      const top3Names = top3.map(x => x.name);
 
       // 팀 정확도 = 팀원 개인 정확도의 평균 (능력자 수는 위에서 집계)
       let accuracy = 0;
       if (indivAcc.length > 0) {
         accuracy = Math.round(indivAcc.reduce((a, b) => a + b, 0) / indivAcc.length);
       }
-      // 팀원 일치도 = 팀원 각자의 상위 3개가 팀 상위 3개에 모인 비율 (응답 점수 기준, 동점은 나눠 인정)
+      // 팀원 일치도 = 팀원 각자의 상위 3개가 팀 상위 3개에 모인 비율 (가중 점수 기준 — 파레토와 같은 기준)
       let consensusRate = 0;
-      if (indivShares.length > 0 && rankTopIdx.length > 0) {
-        const focus = indivShares.reduce((sum, sh) => sum + rankTopIdx.reduce((x, i) => x + sh[i], 0), 0);
-        consensusRate = Math.round(focus / (Math.min(3, N) * indivShares.length) * 100);
+      if (indivTop3.length > 0) {
+        const focus = indivTop3.filter(n => top3Names.includes(n)).length;
+        consensusRate = Math.round(focus / indivTop3.length * 100);
       }
 
-      return { cnt, sums, total, rows, paretoIdx, top3, rankRows, rankTop3, accuracy, masterCount, consensusRate };
+      return { cnt, sums, total, rows, paretoIdx, top3, accuracy, masterCount, consensusRate };
     }
 
     // 팀 정확도 구간 — 색상과 팀 평가 문구가 같은 기준을 쓴다
     //   (모의 실험 기준: 잘 맞힌 팀 70점대, 보통 팀 55점 안팎, 무작위 응답 20점 안팎)
     const ACC_HIGH = 65;   // 이상이면 '높음'(초록)
     const ACC_LOW = 40;    // 미만이면 '낮음'(빨강)
-    const AGREE_HIGH = 70; // 팀원 일치도가 이 이상이면 '한목소리'
+    const AGREE_HIGH = 70; // 팀원 일치도가 이 이상이면 '의견이 모인 팀'
+    // '한목소리로 빗나간 팀' 전용 기준. 일치도는 가중 점수 기준이라 무작위로 답한 팀도 65% 안팎이 나오므로,
+    // 70%로 두면 우연히 넘는 팀이 많다 → 더 높게 잡는다.
+    const AGREE_UNISON = 80;
 
     function accColor(a) { return a >= ACC_HIGH ? 'var(--safe)' : a >= ACC_LOW ? 'var(--warn)' : 'var(--danger)'; }
 
@@ -1940,9 +1942,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const agreement = team.consensusRate || 0;
       if (expertCount > 0 && agreement >= AGREE_HIGH && accuracy < ACC_HIGH) return "💬 소수 의견 경청 후 소통 촉진";
       if (expertCount >= 2) return "🎯 이미 정답을 품은 팀";
-      if (accuracy < ACC_LOW && agreement >= AGREE_HIGH) return "🧱 한목소리로 빗나간 팀 — 전제부터 재검토";
+      if (accuracy < ACC_LOW && agreement >= AGREE_UNISON) return "🧱 한목소리로 빗나간 팀 — 전제부터 재검토";
       if (accuracy >= ACC_LOW && accuracy < ACC_HIGH && expertCount === 0) return "🧭 절반은 맞았다, 방향타가 없다";
-      if (accuracy < ACC_HIGH && agreement < AGREE_HIGH) return "🔀 제각각 — 밀착 관리 필요";
+      // 정확도가 낮은데 한목소리도 아닌 팀은 일치도가 70%대여도 '제각각'으로 본다
+      if (accuracy < ACC_LOW || (accuracy < ACC_HIGH && agreement < AGREE_HIGH)) return "🔀 제각각 — 밀착 관리 필요";
       return "✅ 균형 잡힌 팀워크 유지";
     }
 
@@ -2911,7 +2914,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토 — 80% 구간이 곧 그 팀의 ‘진단 결론’</div>
-        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.<br><b>일치도</b>는 팀원 각자가 높게 평가한 요인 3개가 팀 상위 3개에 모인 비율이며, 가중치를 곱하지 않은 <b>응답 점수(1~5점)</b> 기준입니다. 차트의 순위는 가중치를 반영하므로 기준이 다릅니다.</div>` : ''}
+        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.</div>` : ''}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">`;
 
       teams.forEach(t => {
@@ -3876,7 +3879,7 @@ ${JSON.stringify(payload)}`;
           return;
         }
         const rankCols = Array.from({ length: rankCount }, (_, r) => {
-          const it = t.rankRows[r];     // 응답 점수 기준 팀 순위(정확도와 같은 기준)
+          const it = t.rows[r];         // 파레토와 같은 팀 순위·비율(가중 점수 기준)
           if (!it) return `<td style="color:#e2e8f0;">-</td>`;
           return `<td><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.76rem;padding:3px 8px;">${esc(it.name)}</span>
             <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%</div></td>`;
@@ -3917,7 +3920,7 @@ ${JSON.stringify(payload)}`;
           <b style="color:var(--brand);">팀 정확도</b> · 팀원별 점수(정답 항목 70점 + 정답 순서 30점)의 평균 &nbsp;|&nbsp;
           <b style="color:var(--brand);">능력자</b> · 가장 높게 평가한 요인이 전문가 정답과 모두 일치한 팀원 &nbsp;|&nbsp;
           <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
-          <br>팀원 일치도와 팀 순위는 정확도와 같이 <b>응답 점수(1~5점)</b> 기준입니다. 파레토 분석 화면의 순위는 요인별 가중치를 반영하므로 다를 수 있습니다.
+          <br>팀 순위·비율과 팀원 일치도는 <b>파레토 분석 화면과 같은 값</b>(요인별 가중치 반영)입니다. 팀 정확도와 능력자는 <b>응답 점수(1~5점)</b>로 채점합니다.
         </div>
 
         <div class="eyebrow" style="margin-bottom:10px;">팀별 개선 및 예방대책</div>`;

@@ -53,7 +53,7 @@
       --purple: #7c3aed;
       /* pareto palette */
       --pareto: #dc2626;
-      --pareto-hit: #15803d;
+      --pareto-mid: #f59e0b;
       --pareto-rest: #cbd5e1;
       --pareto-cum: #0e1a2b;
       /* shape */
@@ -879,7 +879,7 @@
     }
 
     .pc-hit {
-      fill: var(--pareto-hit);
+      fill: var(--ink);
       font-size: 11px;
       font-weight: 900;
     }
@@ -927,8 +927,8 @@
       background: #fff5f5;
     }
 
-    .pl-row.hit {
-      background: var(--safe-bg);
+    .pl-row.mid {
+      background: #fff7ed;
     }
 
     .pl-rank {
@@ -949,8 +949,8 @@
       color: #fff;
     }
 
-    .pl-row.hit .pl-rank {
-      background: var(--pareto-hit);
+    .pl-row.mid .pl-rank {
+      background: var(--pareto-mid);
       color: #fff;
     }
 
@@ -1653,6 +1653,11 @@
     //   대책 입력 화면 문구: 강사가 설명하므로 화면에는 핵심만 남겼다(안내 한 줄, 소제목, "한 줄에 대책 하나씩"). 입력 칸 아래 긴 도움말은 삭제.
     //   대책 입력 화면은 작은 스마트폰 기준으로 막대 차트·색 설명·누적 칸·빨강 강조를 빼고, 12개 순위 목록(순위·요인·비율)만 보여 준다.
     //   대책 입력 칸: 한 줄이 LINE_MAX(40)자를 넘으면 모달로 알리고, 긴 줄이 남아 있으면 제출을 막는다. 조절값: LINE_MAX
+    //   파레토 색: 상위 3개 빨강, 그다음 누적 80%까지 주황, 나머지 회색. 녹색은 쓰지 않는다(#8의 강조 규칙과 80% 기준선 조건을 대체).
+    //   대책 입력 화면: 우리 팀 상위 3개 요인만 보여 준다. 강사용 팀별 파레토 소제목은 "팀별 파레토"로 줄였다.
+    //   팀 순위 동점: 합계가 같으면 같은 순위(1·2·2·4). 파레토 빨강·대책 입력 목록·전체 상위 3순위는 3순위와 동점인 요인을 함께 넣고,
+    //   성적표 순위 칸은 마지막 칸(정답 개수 번째)에 동점 요인을 함께 보여 준다. 팀원 일치도는 팀 상위 3개도 동점을 나눠 계산한다.
+    //   (팀 정확도·능력자는 팀 순위를 쓰지 않으므로 그대로다)
     //
     //  ── 조절값 (값만 바꾸면 되는 상수) ─────────────────────────────────────────
     //   USE_WEIGHT_IN_RANKING  false  순위·비율·일치도에 가중치를 쓸지
@@ -1661,7 +1666,7 @@
     //   ORDER_TIE_CREDIT       1      정답끼리 같은 점수일 때 순서 인정 비율(0.5면 절반만 인정)
     //   ACC_HIGH / ACC_LOW     65 / 40  정확도 색상·문구 구간
     //   AGREE_HIGH / AGREE_UNISON  70 / 80  일치도 문구 구간
-    //   TOP_SHOW               5      파레토 차트·목록의 강조 개수, 제출 직후 화면의 '핵심 휴먼에러 요인' 개수
+    //   TOP_SHOW               5      제출 직후 화면의 '핵심 휴먼에러 요인' 개수
     //
     //  ── 검토했다가 쓰지 않은 방식 (다시 논의될 때 참고) ─────────────────────────
     //   · 일치도를 12개 요인 전체의 점수 흩어짐으로 계산: 보통 팀 58%, 의견이 갈린 팀 29%로 너무 낮게 나와 철회.
@@ -1982,7 +1987,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     function riskPercent(weightedSum, weightSum) {
       return Math.max(0, Math.min(100, (weightedSum - weightSum) / (4 * weightSum) * 100));
     }
-    const TOP_SHOW = 5;         // [조절값] 파레토 차트·목록에서 강조할 개수, 그리고 제출 직후 화면의 '핵심 휴먼에러 요인' 개수
+    const TOP_SHOW = 5;         // [조절값] 제출 직후 화면의 '핵심 휴먼에러 요인' 개수(파레토 색 구분에는 2026-11-13부터 쓰지 않는다)
 
     // [변경 2026-11-12 #4] 개인 정확도 채점 방식 교체.
     //   이전: 가중 점수 상위 3개 중 정답 수 ÷ min(3, 정답 개수) × 100 (값은 0·33·67·100뿐, 정답 4개여도 3개만 봄, 순서는 안 봄)
@@ -2079,8 +2084,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const { rows, total, paretoIdx } = analyzeFromSums(sums, factorNames, answerKeys);
 
       // 성적표의 팀 순위·비율은 파레토와 같은 rows를 그대로 쓴다 → 두 화면의 숫자가 같다.
-      const top3 = rows.slice(0, 3);
-      const top3Idx = top3.map(x => factorNames.indexOf(x.name));
+      const top3 = rows.filter(r => r.rank <= 3);
+      // [변경 2026-11-13] 팀 상위 3개도 팀원 쪽과 같이 동점을 나눠 인정한다. 이전: 문항 번호 순으로 앞의 3개.
+      const teamShare = topShare(sums, 3);   // 각 요인이 '팀 상위 3개'에 든 정도(0~1)
 
       // 팀 정확도 = 팀원 개인 정확도의 평균 (능력자 수는 위에서 집계)
       let accuracy = 0;
@@ -2092,8 +2098,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       //   응답 점수는 동점이 많으므로, 3번째 자리에 걸친 동점은 걸친 만큼 나눠 인정한다.
       //   (12개 요인 전체로 계산하면 보통 팀이 58%, 의견이 갈린 팀이 29%까지 떨어져 상위 3개 방식을 쓴다)
       let consensusRate = 0;
-      if (indivShares.length > 0 && top3Idx.length > 0) {
-        const focus = indivShares.reduce((sum, sh) => sum + top3Idx.reduce((x, i) => x + sh[i], 0), 0);
+      if (indivShares.length > 0 && N > 0) {
+        const focus = indivShares.reduce((sum, sh) => sum + sh.reduce((x, v, i) => x + v * teamShare[i], 0), 0);
         consensusRate = Math.round(focus / (Math.min(3, N) * indivShares.length) * 100);
       }
 
@@ -2138,7 +2144,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
     }
 
     // ================================================================
-    //  파레토 차트 (순수 SVG) — 정렬 막대 + 누적선 + 정답 하이라이트 (80% 기준선은 가중치를 순위에 쓸 때만)
+    //  파레토 차트 (순수 SVG) — 정렬 막대(상위 3개 빨강 · 누적 80%까지 주황 · 나머지 회색) + 누적선 + 80% 기준선
     // ================================================================
     // 요인명을 X축용 짧은 라벨로 변환 ("지름길/생략 본능" → "지름길")
     function shortFactor(name) {
@@ -2173,7 +2179,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         const bh = (r.pct / 100) * ch;
         const by = yBot - bh;
         const cumY = yOf(r.cumPct);
-        const fill = r.inPareto ? (r.hit ? 'var(--pareto-hit)' : 'var(--pareto)') : 'var(--pareto-rest)';
+        // [변경 2026-11-13] 막대 색: 상위 3개 빨강, 그다음 누적 80%까지 주황, 나머지 회색(녹색은 쓰지 않는다)
+        const fill = r.tier === 'top' ? 'var(--pareto)' : r.tier === 'mid' ? 'var(--pareto-mid)' : 'var(--pareto-rest)';
         bars += `<rect x="${bx.toFixed(1)}" y="${by.toFixed(1)}" width="${barW.toFixed(1)}" height="${Math.max(0, bh).toFixed(1)}" rx="2" fill="${fill}"><title>${esc(r.name)} · ${Math.round(r.pct)}%</title></rect>`;
 
         if (detailed) {
@@ -2199,9 +2206,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
 
       const y80 = yOf(80);
-      // [변경 2026-11-12 #8] 80% 기준선을 조건부로. 이전: 항상 그렸다.
-      // 80% 기준선은 누적 80% 구간으로 강조할 때(가중치를 순위에 쓸 때)만 그린다
-      const line80 = !USE_WEIGHT_IN_RANKING ? '' : `<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y80.toFixed(1)}" class="pc-80"/>`
+      // [변경 2026-11-13] 80% 기준선을 다시 항상 그린다(주황 구간의 끝이 누적 80%이므로). 2026-11-12 #8에서는 조건부였다.
+      const line80 = `<line x1="${padL}" y1="${y80.toFixed(1)}" x2="${(W - padR).toFixed(1)}" y2="${y80.toFixed(1)}" class="pc-80"/>`
         + `<text x="${(W - padR + 3)}" y="${(y80 + 3).toFixed(1)}" class="pc-80t">80</text>`;
 
       const path = cumPts.map((p, i) => `${i ? 'L' : 'M'}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ');
@@ -2216,8 +2222,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       const showHit = opts.showHit;
       const showMark = opts.mark !== false;
       return `<div class="pareto-legend">` + rows.map(r => {
-        // compact(작은 스마트폰용): 빨강(상위 TOP_SHOW개) 강조와 '누적' 칸을 빼 요인 이름이 잘리지 않게 한다
-        const cls = showHit && r.hit ? 'hit' : (r.inPareto && !opts.compact) ? 'in' : '';
+        // compact(작은 스마트폰용): '누적' 칸을 빼 요인 이름이 잘리지 않게 한다
+        const cls = r.tier === 'top' ? 'in' : (r.tier === 'mid' && !opts.compact) ? 'mid' : '';
         return `<div class="pl-row ${cls}">
           <span class="pl-rank">${r.rank}</span>
           <span class="pl-name">${esc(r.name)}${showHit && r.hit && showMark ? ' ✓' : ''}</span>
@@ -2227,10 +2233,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }).join('') + `</div>`;
     }
 
-    // [변경 2026-11-12 #8] 범례에 강조 막대의 색 설명 추가. 이전: 녹색(상위 3순위 등)과 '그 외'만 있어 강조 막대의 색이 설명되지 않았다.
-    const paretoKeys = (showHit, hitLabel) => `<div class="legend-keys">
-      ${showHit ? `<span class="lk"><i style="background:var(--pareto-hit)"></i>${hitLabel || '전문가 정답 일치'}</span>` : ''}
-      <span class="lk"><i style="background:var(--pareto)"></i>${USE_WEIGHT_IN_RANKING ? '누적 80% 구간' : `상위 ${TOP_SHOW}개`}</span>
+    // [변경 2026-11-13] 색 설명을 새 색 구분에 맞춤(빨강·주황·회색).
+    const paretoKeys = () => `<div class="legend-keys">
+      <span class="lk"><i style="background:var(--pareto)"></i>1~3순위</span>
+      <span class="lk"><i style="background:var(--pareto-mid)"></i>누적 80%까지</span>
       <span class="lk"><i style="background:var(--pareto-rest)"></i>그 외</span>
       <span class="lk"><svg width="22" height="8"><line x1="0" y1="4" x2="22" y2="4" stroke="var(--ink)" stroke-width="2"/></svg>누적 비율</span>
     </div>`;
@@ -2770,10 +2776,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       }
       // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
       const stat = analyzeTeam(snap, factorNames, []);
-      stat.rows.forEach(r => r.hit = r.rank <= 3);   // 우리 팀 상위 3순위 → 녹색
-      // [변경 2026-11-13] 차트 아래 목록에 요인 전체(12개)를 순위대로 보여 준다. 이전(2026-11-12 #9): 상위 TOP_SHOW개만.
-      //   작은 스마트폰에서 보는 화면이라 막대 차트와 색 설명은 빼고 순위 목록만 둔다(녹색 = 우리 팀 1~3순위).
-      const pareto = stat.rows;
+      // [변경 2026-11-13] 우리 팀 1~3순위 요인만 보여 준다(순위·요인·비율, 3순위와 동점이면 함께). 작은 스마트폰에서 보는 화면이라 막대 차트와 색 설명은 두지 않는다.
+      //   정답 개수가 드러나지 않도록 정답이 4개인 시나리오에서도 3순위까지만 보여 준다.
+      const pareto = stat.rows.filter(r => r.rank <= 3);
       // [변경 2026-11-13] "우리 팀의 휴먼에러 기여 수준" 문구 삭제(2026-11-12 #3에서 추가했던 것). 이 지표는 강사용 성적표에만 남긴다.
 
       p2.innerHTML = `
@@ -2783,7 +2788,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
         <div class="card tight" style="margin-bottom:14px;">
           <div class="eyebrow" style="margin-bottom:8px;">우리 팀이 선택한 핵심 휴먼에러 요인</div>
-          ${stat.cnt > 0 ? paretoLegend(pareto, { showHit: true, mark: false, compact: true })
+          ${stat.cnt > 0 ? paretoLegend(pareto, { compact: true })
           : '<p class="empty">아직 응답 데이터가 없습니다.</p>'}
         </div>
 
@@ -3127,12 +3132,10 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         return { name: `${k + 1}팀`, ...stat };
       });
 
-      // 전체 파레토 모델 — 전체 1·2·3순위를 '합의 핵심요인'으로 녹색 표시하고,
-      // 각 팀 차트에서도 이 3개와 일치하는 요인을 같은 녹색으로 표시한다.
+      // 전체 파레토 모델 — 전체 1·2·3순위가 '합의 핵심요인'(빨강)이고,
+      // 각 팀 차트에서는 이 3개와 일치하는 요인에 ✓ 를 붙인다(색은 그 팀 자체의 순위를 따른다).
       const overall = analyzeFromSums(overallSums, factorNames, answerKeys);
-      overall.rows.forEach(r => r.hit = r.rank <= 3);                 // 전체 상위 3순위 = 녹색
-      const overallPareto = overall.rows.filter(r => r.inPareto);
-      const consensusKeys = overall.rows.slice(0, 3).map(r => r.name); // 팀 비교 기준
+      const consensusKeys = overall.rows.filter(r => r.rank <= 3).map(r => r.name); // 팀 비교 기준(3순위와 동점이면 함께)
 
       let html = `
         <div class="notice notice-amber" style="margin-bottom:16px;">
@@ -3142,17 +3145,17 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         <div class="eyebrow" style="margin-bottom:10px;">전체 종합 — 모든 팀 합산 (${overallCnt}명)</div>
         <div class="card tight" style="margin-bottom:8px;">
           ${overallCnt > 0
-          ? paretoKeys(true, '전체 1·2·3순위') + paretoChart(overall.rows, { height: 320, showHit: true, mark: false, detailed: true })
+          ? paretoKeys() + paretoChart(overall.rows, { height: 320, detailed: true })
           : '<p class="empty">응답 데이터가 없습니다.</p>'}
         </div>
         <div class="notice notice-slate" style="margin-bottom:22px;">
           ${overallCnt > 0
-          ? `전체 합산 기준 핵심요인은 <b>${consensusKeys.map(esc).join(' · ')}</b> 입니다. <span class="muted">(녹색 = 1·2·3순위)</span>`
+          ? `전체 합산 기준 핵심요인은 <b>${consensusKeys.map(esc).join(' · ')}</b> 입니다. <span class="muted">(빨강 = 1·2·3순위)</span>`
           : '전체 응답이 모이면 합의 핵심요인이 표시됩니다.'}
         </div>
 
-        <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토 — 상위 ${TOP_SHOW}개 요인이 그 팀의 ‘진단 결론’</div>
-        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b style="color:var(--pareto-hit);">녹색 ✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.<br><b>일치도</b>는 팀원 각자가 가장 높게 평가한 요인 3개가 그 팀의 상위 3개에 모인 비율입니다.</div>` : ''}
+        <div class="eyebrow" style="margin-bottom:10px;">팀별 파레토</div>
+        ${overallCnt > 0 ? `<div class="notice notice-slate" style="margin-bottom:12px;font-size:.82rem;">각 팀에서 <b>✓</b> 는 전체 상위 3순위(<b>${consensusKeys.map(esc).join(' · ')}</b>)와 일치하는 요인입니다.<br><b>일치도</b>는 팀원 각자가 가장 높게 평가한 요인 3개가 그 팀의 상위 3개에 모인 비율입니다.</div>` : ''}
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px;">`;
 
       teams.forEach(t => {
@@ -3160,9 +3163,9 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
           html += `<div class="card tight"><div style="font-weight:800;color:var(--brand-deep);">${t.name}</div><p class="empty">응답 없음</p></div>`;
           return;
         }
-        t.rows.forEach(r => r.hit = consensusKeys.includes(r.name)); // 전체 상위 3순위와 일치 → 녹색
+        t.rows.forEach(r => r.hit = consensusKeys.includes(r.name)); // 전체 상위 3순위와 일치 → ✓ 표시
         // [변경 2026-11-13] 강사용 팀별 파레토 목록에 요인 전체(12개)를 보여 준다. 이전(2026-11-12 #9): 상위 TOP_SHOW개만.
-        const pareto = t.rows;   // 상위 TOP_SHOW개는 색(빨강)으로만 강조한다
+        const pareto = t.rows;   // 색은 차트와 같다(상위 3개 빨강, 누적 80%까지 주황)
         html += `<div class="card tight">
           <div class="section-head" style="margin-bottom:8px;">
             <div style="font-weight:800;color:var(--brand-deep);">${t.name} <span class="muted" style="font-weight:600;font-size:.82rem;">· ${t.cnt}명</span></div>
@@ -3185,15 +3188,16 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         cum += it.val;
         const cumPct = total > 0 ? cum / total * 100 : 0;
         if (cumPct >= 80 && paretoIdx === -1) paretoIdx = i;
-        return { rank: i + 1, name: it.name, val: it.val, pct: total > 0 ? it.val / total * 100 : 0, cumPct, hit: answerKeys.includes(it.name) };
+        // [변경 2026-11-13] 합계가 같으면 같은 순위(예: 1·2·2·4). 이전: 문항 번호 순으로 1·2·3·4.
+        const rank = 1 + sorted.filter(o => o.val > it.val + 1e-9).length;
+        return { rank, name: it.name, val: it.val, pct: total > 0 ? it.val / total * 100 : 0, cumPct, hit: answerKeys.includes(it.name) };
       });
-      // [변경 2026-11-12 #8] 강조 범위(inPareto)를 조건부로. 이전: 항상 누적 80% 구간.
-      // 차트에서 진하게 강조할 범위.
-      //   가중치를 순위에 쓸 때는 누적 80% 구간, 쓰지 않을 때는 상위 TOP_SHOW개.
-      //   (가중치 없이 80%로 자르면 12개 중 10개 안팎이 강조되어 구분이 되지 않는다)
-      rows.forEach((r, i) => r.inPareto = USE_WEIGHT_IN_RANKING
-        ? (paretoIdx === -1 ? true : i <= paretoIdx)
-        : i < TOP_SHOW);
+      // [변경 2026-11-13] 색 구간(tier): top = 1~3순위(빨강, 3순위와 동점인 요인 포함), mid = 그다음부터 누적 80%에 닿는 요인까지(주황), rest = 나머지(회색).
+      //   이전(2026-11-12 #8): 상위 TOP_SHOW개만 강조(inPareto). 가중치 스위치와 무관하게 같은 규칙을 쓴다.
+      rows.forEach((r, i) => {
+        r.tier = r.rank <= 3 ? 'top' : (paretoIdx === -1 || i <= paretoIdx) ? 'mid' : 'rest';
+        r.inPareto = r.tier !== 'rest';   // 간이 차트의 순위 숫자를 진하게 표시하는 데 쓴다
+      });
       return { rows, total, paretoIdx };
     }
 
@@ -4130,8 +4134,10 @@ ${JSON.stringify(payload)}`;
         const rankCols = Array.from({ length: rankCount }, (_, r) => {
           const it = t.rows[r];         // 파레토와 같은 팀 순위·비율
           if (!it) return `<td style="${RANK_CELL}color:#e2e8f0;">-</td>`;
-          return `<td style="${RANK_CELL}"><span class="chip ${it.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.74rem;padding:2px 7px;">${esc(it.name)}</span>
-            <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%</div></td>`;
+          // [변경 2026-11-13] 마지막 칸의 요인과 합계가 같은 요인이 더 있으면 그 칸에 함께 보여 준다(동점인 정답이 문항 번호 때문에 빠지지 않게).
+          const cell = r === rankCount - 1 ? t.rows.slice(r).filter(x => x.rank === it.rank) : [it];
+          return `<td style="${RANK_CELL}">${cell.map(x => `<div style="margin:2px 0;"><span class="chip ${x.hit ? 'chip-hit' : 'chip-miss'}" style="font-size:.74rem;padding:2px 7px;">${esc(x.name)}</span></div>`).join('')}
+            <div style="font-size:.72rem;color:var(--muted-2);margin-top:2px;">${Math.round(it.pct)}%${cell.length > 1 ? ' · 동점' : ''}</div></td>`;
         }).join('');
         // [변경 2026-11-12 #10] 휴먼에러 기여 수준 칸(#3의 값). 순위 칸 다음, 능력자 칸 앞에 놓는다.
         // 휴먼에러 기여 수준: 평균을 위에, 그 아래 작은 글씨로 (최저~최고)
@@ -4178,7 +4184,7 @@ ${JSON.stringify(payload)}`;
           <b style="color:var(--brand);">팀 정확도</b> · 팀원별 점수의 평균입니다. 항목 70점은 전문가 정답이 그 팀원의 상위 ${answerKeys.length + ACC_NET_EXTRA}개 안에 든 정도, 순서 30점은 정답끼리의 순서가 뒤집히지 않은 정도입니다.
           <br><b style="color:var(--brand);">능력자</b> · 항목과 순서를 모두 맞힌 팀원입니다. 전문가 정답 ${answerKeys.length}개를 모두 자신의 상위 ${answerKeys.length}개 안에 넣고, 정답끼리의 순서도 뒤집히지 않은 경우(개인 100점)입니다. &nbsp;|&nbsp;
           <span style="color:var(--safe);">초록</span>=정답 일치 / <span style="color:var(--danger);">빨강</span>=정답 미포함
-          <br><b style="color:var(--brand);">팀원 일치도</b> · 팀원 각자가 가장 높게 평가한 요인 3개가 팀 상위 3개(1~3순위)에 모인 비율입니다.
+          <br><b style="color:var(--brand);">팀원 일치도</b> · 팀원 각자가 가장 높게 평가한 요인 3개가 팀 상위 3개(1~3순위)에 모인 비율입니다. 동점은 나눠 인정합니다.
           <br><b style="color:var(--brand);">휴먼에러 기여 수준</b> · 12가지 휴먼에러 요인이 이 사고에 전체적으로 얼마나 크게 기여했다고 보는지에 대한 팀원들의 판단입니다. 팀원별 (점수 × 가중치) 합계를 0~100%로 환산한 값의 평균이며, 괄호는 팀원 중 최저~최고입니다. 정답과 무관한 참고 지표입니다.
           <br>팀 순위·비율, 팀원 일치도, 팀 정확도, 능력자는 모두 팀원이 준 <b>응답 점수(1~5점)</b>로 계산하며, 순위와 비율은 파레토 분석 화면과 같습니다. 요인별 가중치는 <b>휴먼에러 기여 수준</b>에만 씁니다.
         </div>

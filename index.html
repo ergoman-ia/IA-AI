@@ -1658,6 +1658,9 @@
     //   팀 순위 동점: 합계가 같으면 같은 순위(1·2·2·4). 파레토 빨강·대책 입력 목록·전체 상위 3순위는 3순위와 동점인 요인을 함께 넣고,
     //   성적표 순위 칸은 마지막 칸(정답 개수 번째)에 동점 요인을 함께 보여 준다. 팀원 일치도는 팀 상위 3개도 동점을 나눠 계산한다.
     //   (팀 정확도·능력자는 팀 순위를 쓰지 않으므로 그대로다)
+    //   대책 입력 화면 속도: 강사가 마감할 때 팀 1~3순위를 마감 문서(meta/status의 top·cnt)에 저장하고, 스마트폰은 그것을 바로 보여 준다.
+    //   강사가 '파레토 분석 결과'를 열 때도 저장한다 → 이전에 마감한 과정은 다시 마감하지 않고 이 화면만 한 번 열면 된다.
+    //   그때까지 저장된 순위가 없는 팀은 예전처럼 팀 응답을 받아 와 계산한다. 마감 뒤 응답을 삭제하면 순위를 다시 저장한다.
     //
     //  ── 조절값 (값만 바꾸면 되는 상수) ─────────────────────────────────────────
     //   USE_WEIGHT_IN_RANKING  false  순위·비율·일치도에 가중치를 쓸지
@@ -2565,10 +2568,15 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       return checkIfClosed(sessId, teamId);
     }
 
+    // [변경 2026-11-13] 마감 문서에는 마감할 때 계산해 둔 팀 1~3순위(top)도 들어 있다. 읽은 내용을 기억해 두었다가
+    //   대책 입력 화면이 그대로 쓴다 → 팀 응답 전체를 다시 받아 오지 않는다.
+    var lastStatus = null;   // { sess, team, data }  (var: 위쪽 함수가 먼저 실행돼도 오류가 나지 않도록)
     async function checkIfClosed(sessId, teamId) {
       try {
         const snap = await getDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'meta', 'status'));
-        return snap.exists() && snap.data().closed === true;
+        const data = snap.exists() ? snap.data() : null;
+        lastStatus = { sess: sessId, team: teamId, data };
+        return !!data && data.closed === true;
       } catch (e) { return false; }
     }
 
@@ -2760,25 +2768,35 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       p2.style.display = 'block';
       p2.innerHTML = '<p class="empty">팀 진단 결과 분석 중…</p>';
 
-      const qs = QUESTIONS[industryKey] || QUESTIONS.construction;
-      const factorNames = qs.map(q => q.factor);
-      let snap;
-      try {
-        snap = await getDocs(collection(db, 'sessions', sessId, 'teams', teamId, 'submissions'));
-      } catch (e) {
-        // 화면을 먼저 띄우므로, 불러오기에 실패하면 "분석 중…"에 멈춰 보이지 않게 안내와 다시 시도 버튼을 보여 준다.
-        console.warn('팀 진단 결과 불러오기 실패:', e);
-        p2.innerHTML = `<div class="notice" style="margin-bottom:14px;">
+      // [변경 2026-11-13] 마감할 때 저장해 둔 팀 1~3순위를 먼저 쓴다(바로 표시). 저장된 것이 없는 과정(이전에 마감한 과정)만
+      //   예전처럼 팀 응답 전체를 받아 와 계산한다.
+      let saved = (lastStatus && lastStatus.sess === sessId && lastStatus.team === teamId) ? lastStatus.data : undefined;
+      if (saved === undefined) {
+        try {
+          const st = await getDoc(doc(db, 'sessions', sessId, 'teams', teamId, 'meta', 'status'));
+          saved = st.exists() ? st.data() : null;
+        } catch (e) { saved = null; }
+      }
+      let pareto, cnt;
+      if (saved && Array.isArray(saved.top)) {
+        pareto = saved.top.map(x => ({ rank: x.rank, name: x.name, pct: x.pct, tier: 'top' }));
+        cnt = saved.cnt || 0;
+      } else {
+        let top;
+        try {
+          top = await computeTeamTop(sessId, teamId, industryKey);
+        } catch (e) {
+          // 화면을 먼저 띄우므로, 불러오기에 실패하면 "분석 중…"에 멈춰 보이지 않게 안내와 다시 시도 버튼을 보여 준다.
+          console.warn('팀 진단 결과 불러오기 실패:', e);
+          p2.innerHTML = `<div class="notice" style="margin-bottom:14px;">
             팀 진단 결과를 불러오지 못했습니다. 인터넷 연결을 확인한 뒤 다시 시도해 주세요.
           </div>
           <button class="btn btn-green btn-full" onclick="retryPhase2()">🔄 다시 시도</button>`;
-        return;
+          return;
+        }
+        pareto = top.top.map(x => ({ ...x, tier: 'top' }));
+        cnt = top.cnt;
       }
-      // 참가자에게는 정답을 공개하지 않음 → answerKeys 빈 배열
-      const stat = analyzeTeam(snap, factorNames, []);
-      // [변경 2026-11-13] 우리 팀 1~3순위 요인만 보여 준다(순위·요인·비율, 3순위와 동점이면 함께). 작은 스마트폰에서 보는 화면이라 막대 차트와 색 설명은 두지 않는다.
-      //   정답 개수가 드러나지 않도록 정답이 4개인 시나리오에서도 3순위까지만 보여 준다.
-      const pareto = stat.rows.filter(r => r.rank <= 3);
       // [변경 2026-11-13] "우리 팀의 휴먼에러 기여 수준" 문구 삭제(2026-11-12 #3에서 추가했던 것). 이 지표는 강사용 성적표에만 남긴다.
 
       p2.innerHTML = `
@@ -2788,7 +2806,7 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
 
         <div class="card tight" style="margin-bottom:14px;">
           <div class="eyebrow" style="margin-bottom:8px;">우리 팀이 선택한 핵심 휴먼에러 요인</div>
-          ${stat.cnt > 0 ? paretoLegend(pareto, { compact: true })
+          ${cnt > 0 ? paretoLegend(pareto, { compact: true })
           : '<p class="empty">아직 응답 데이터가 없습니다.</p>'}
         </div>
 
@@ -3061,6 +3079,48 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
       });
     };
 
+    // [변경 2026-11-13] 팀의 1~3순위(3순위와 동점이면 함께)를 계산한다. 마감할 때 저장해 두고 대책 입력 화면이 그대로 쓴다.
+    //   참가자에게 보여 주는 값이므로 정답은 넣지 않는다. 정답 개수가 드러나지 않도록 항상 3순위까지만.
+    async function computeTeamTop(sess, teamId, industry) {
+      const names = (QUESTIONS[industry] || QUESTIONS.construction).map(q => q.factor);
+      const snap = await getDocs(collection(db, 'sessions', sess, 'teams', teamId, 'submissions'));
+      return topOfStat(analyzeTeam(snap, names, []));
+    }
+    // analyzeTeam 결과에서 저장할 값(1~3순위와 응답 인원)만 뽑는다
+    function topOfStat(stat) {
+      const top = stat.cnt > 0
+        ? stat.rows.filter(r => r.rank <= 3).map(r => ({ rank: r.rank, name: r.name, pct: Math.round(r.pct) }))
+        : [];
+      return { top, cnt: stat.cnt };
+    }
+    // [변경 2026-11-13] 강사가 '파레토 분석 결과'를 열 때도 팀 1~3순위를 마감 문서에 저장한다.
+    //   → 이전에 마감한 과정은 다시 마감하지 않아도 이 화면을 한 번 열면 저장된다.
+    //   마감되지 않은 팀은 건드리지 않고, 저장된 값이 이미 같으면 쓰지 않는다.  stats[k] = (k+1)팀의 analyzeTeam 결과
+    async function syncSavedTops(sess, stats) {
+      const key = v => (v.top || []).map(x => `${x.rank}|${x.name}|${x.pct}`).join('/') + `#${v.cnt}`;
+      await Promise.all(stats.map(async (stat, k) => {
+        try {
+          const ref = doc(db, 'sessions', sess, 'teams', `team_${k + 1}`, 'meta', 'status');
+          const st = await getDoc(ref);
+          if (!st.exists() || st.data().closed !== true) return;
+          const now = topOfStat(stat);
+          if (Array.isArray(st.data().top) && key(st.data()) === key(now)) return;
+          await updateDoc(ref, now);
+        } catch (e) { console.warn(`${k + 1}팀 순위 저장 실패:`, e); }
+      }));
+    }
+    // 마감된 뒤 강사가 응답을 삭제하면 저장해 둔 순위를 다시 계산해 맞춘다(마감 전이면 아무것도 하지 않는다)
+    async function refreshSavedTop(sess, teamId) {
+      try {
+        const ref = doc(db, 'sessions', sess, 'teams', teamId, 'meta', 'status');
+        const st = await getDoc(ref);
+        if (!st.exists() || st.data().closed !== true) return;
+        const cfg = await getDoc(doc(db, 'course_configs', sess));
+        const industry = cfg.exists() ? cfg.data().industry : 'construction';
+        await updateDoc(ref, await computeTeamTop(sess, teamId, industry));
+      } catch (e) { console.warn('저장된 팀 순위 갱신 실패:', e); }
+    }
+
     window.closeAllSurveys = async () => {
       if (!currentDashSess) return;
       if (!confirm('전체 설문을 마감하고 대책 입력 단계를 열까요?')) return;
@@ -3068,9 +3128,19 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         let tCount = 6;
         const cfg = await getDoc(doc(db, 'course_configs', currentDashSess));
         if (cfg.exists()) tCount = cfg.data().teamCount || 6;
+        const industry = cfg.exists() ? cfg.data().industry : 'construction';
+        const sess = currentDashSess;
         const batch = [];
-        for (let i = 1; i <= tCount; i++)
-          batch.push(setDoc(doc(db, 'sessions', currentDashSess, 'teams', `team_${i}`, 'meta', 'status'), { closed: true, closedAt: new Date() }));
+        // [변경 2026-11-13] 마감 표시와 함께 팀 1~3순위(top)·응답 인원(cnt)을 저장한다.
+        //   순위 계산에 실패한 팀도 마감은 그대로 한다(그 팀은 스마트폰이 예전 방식으로 계산).
+        for (let i = 1; i <= tCount; i++) {
+          batch.push((async () => {
+            let extra = {};
+            try { extra = await computeTeamTop(sess, `team_${i}`, industry); }
+            catch (e) { console.warn(`${i}팀 순위 계산 실패 → 마감만 저장:`, e); }
+            await setDoc(doc(db, 'sessions', sess, 'teams', `team_${i}`, 'meta', 'status'), { closed: true, closedAt: new Date(), ...extra });
+          })());
+        }
         await Promise.all(batch);
         alert('전체 팀 설문이 마감되었습니다.');
         onDashCourseChange();
@@ -3131,6 +3201,8 @@ A씨는 전문적인 신호 체계나 무전 용어를 전혀 숙지하지 못�
         overallCnt += stat.cnt;
         return { name: `${k + 1}팀`, ...stat };
       });
+      // [변경 2026-11-13] 마감된 과정이면 팀 1~3순위를 저장해 둔다(화면 표시를 기다리게 하지 않도록 뒤에서 처리)
+      syncSavedTops(sessId, teams);
 
       // 전체 파레토 모델 — 전체 1·2·3순위가 '합의 핵심요인'(빨강)이고,
       // 각 팀 차트에서는 이 3개와 일치하는 요인에 ✓ 를 붙인다(색은 그 팀 자체의 순위를 따른다).
@@ -4502,6 +4574,7 @@ ${JSON.stringify(payload)}`;
       if (!confirm(`아래 응답 1건을 삭제합니다.\n\n과정: ${g.sess}\n팀: ${m.team}\n제출: ${when}\n응답: ${m.pattern || '-'}\n\n삭제하시겠습니까?`)) return;
       try {
         await deleteDoc(doc(db, 'sessions', m.sess, 'teams', m.teamId, 'submissions', m.id));
+        await refreshSavedTop(m.sess, m.teamId);
         g.members.splice(mi, 1);
         if (g.members.length < 2) dupCache.splice(gi, 1);
         renderDupPanel();
@@ -4511,7 +4584,7 @@ ${JSON.stringify(payload)}`;
 
     window.delDoc = async (sess, teamId, docId) => {
       if (!confirm('이 설문 응답을 삭제하시겠습니까?')) return;
-      try { await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId)); alert("삭제되었습니다."); loadAdminData(); }
+      try { await deleteDoc(doc(db, 'sessions', sess, 'teams', teamId, 'submissions', docId)); await refreshSavedTop(sess, teamId); alert("삭제되었습니다."); loadAdminData(); }
       catch (e) { alert("삭제 실패: " + e.message); }
     };
     window.delCM = async (sess, teamId, docId) => {
